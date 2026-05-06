@@ -1,0 +1,20 @@
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+BASE_DIR = Path(__file__).parent.parent
+DATA_DIR = BASE_DIR / "data"
+RAW_DATA_DIR = DATA_DIR / "raw"
+VECTORDB_DIR = DATA_DIR / "vectordb"
+OUTPUTS_DIR = BASE_DIR / "outputs"
+CHARTS_DIR = OUTPUTS_DIR / "charts"
+
+for d in [RAW_DATA_DIR, VECTORDB_DIR, CHARTS_DIR]:
+    d.mkdir(parents=True, exist_ok=True)
+
+HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+EMBEDDING_MODEL = "BAAI/bge-m3"
+VECTORDB_PATH = str(VECTORDB_DIR)

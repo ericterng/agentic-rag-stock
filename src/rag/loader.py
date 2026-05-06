@@ -1,5 +1,5 @@
 import yfinance as yf
-from langchain.schema import Document
+from langchain_core.documents import Document
 from langchain_community.document_loaders import PyPDFLoader
 from src.config import RAW_DATA_DIR
 

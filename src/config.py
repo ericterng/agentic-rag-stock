@@ -15,6 +15,6 @@ for d in [RAW_DATA_DIR, VECTORDB_DIR, CHARTS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Meta-Llama-3-8B-Instruct")
 EMBEDDING_MODEL = "BAAI/bge-m3"
 VECTORDB_PATH = str(VECTORDB_DIR)

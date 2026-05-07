@@ -11,9 +11,9 @@ plotly>=5.15.0
 transformers>=4.40.0
 bitsandbytes>=0.43.0
 accelerate>=0.29.0
-torch>=2.6.0
-torchvision>=0.21.0
-torchaudio>=2.6.0
+torch>=2.5.1
+torchvision>=0.20.0
+torchaudio>=2.5.0
 
 # LangChain
 langchain>=0.2.0

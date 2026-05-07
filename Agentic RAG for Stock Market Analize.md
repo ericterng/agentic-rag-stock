@@ -56,7 +56,7 @@ agentic-rag-stock/
 | `get_stock_history(ticker, period)` | 股票代碼、時間區間 | 抓取歷史股價 |
 | `get_fundamental_data(ticker)` | 股票代碼 | 本益比、殖利率、市值等基本面 |
 | `plot_stock_chart(ticker, data)` | 股票代碼、價格資料 | 繪製走勢圖並存檔 |
-| `search_financial_news(query)` | 搜尋關鍵字 | 查詢財經新聞（yfinance news 為主，PTT 為輔） |
+| `search_financial_news(query)` | 股票代碼（ticker） | 查詢財經新聞（yfinance news 為主；關鍵字查詢請改用 `search_knowledge_base`） |
 | `search_knowledge_base(query)` | 搜尋關鍵字 | RAG 向量資料庫檢索 |
 
 ---

@@ -32,5 +32,5 @@ def load_model_4bit(model_name: str = None):
     )
 
     print(f"Model loaded: {model_name}")
-    print(f"Device map: {model.hf_device_map}")
+    print(f"Device: {next(model.parameters()).device}")
     return tokenizer, model

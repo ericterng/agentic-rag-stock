@@ -1,5 +1,5 @@
 import yfinance as yf
-from langchain.tools import tool
+from langchain_core.tools import tool
 
 
 def get_stock_news(ticker: str, max_items: int = 5) -> list[dict]:
@@ -18,10 +18,12 @@ def get_stock_news(ticker: str, max_items: int = 5) -> list[dict]:
 
 @tool
 def tool_search_financial_news(query: str) -> str:
-    """Search for recent financial news for a stock ticker or keyword.
+    """Search for recent financial news by stock ticker.
+
+    For broad keyword queries (e.g. '半導體', 'AI'), use tool_search_knowledge_base instead.
 
     Args:
-        query: Stock ticker or keyword (e.g. '2330.TW', 'TSMC', '半導體')
+        query: Stock ticker symbol (e.g. '2330.TW', '0050.TW', 'TSMC')
     """
     try:
         news = get_stock_news(query)

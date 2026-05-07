@@ -5,7 +5,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime
-from langchain.tools import tool
+from langchain_core.tools import tool
 from src.config import CHARTS_DIR
 
 

@@ -41,7 +41,7 @@ agentic-rag-stock/
 ├── notebooks/
 │   ├── week1_skills.ipynb      # Week 1：技能測試（股價、基本面、圖表、模型載入）
 │   ├── week2_rag.ipynb         # Week 2：RAG pipeline 測試
-│   ├── week3_agent.ipynb       # Week 3：Agent 整合測試（待完成）
+│   ├── week3_agent.ipynb       # Week 3：Agent 整合測試（完成）
 │   ├── week4_reasoning.ipynb   # Week 4：ReAct 推理測試（待完成）
 │   └── week5_guardrails.ipynb  # Week 5：Guardrails 優化（待完成）
 │
@@ -60,8 +60,8 @@ agentic-rag-stock/
 │   │   └── retriever.py        # ChromaDB 建立、持久化、similarity search
 │   │
 │   └── agent/
-│       ├── agent.py            # ReAct Agent 主體（Week 3，待完成）
-│       ├── memory.py           # 對話記憶（Week 3，待完成）
+│       ├── agent.py            # 文字式 ReAct StateGraph（Week 3）
+│       ├── memory.py           # MemorySaver 多輪對話記憶（Week 3）
 │       └── guardrails.py       # 防護欄與 Output Parser（Week 5，待完成）
 │
 ├── data/
@@ -146,7 +146,7 @@ MODEL_NAME=meta-llama/Meta-Llama-3-8B-Instruct
 |---|---|---|
 | Week 1 | ✅ 完成 | 技能建置：股價、基本面、走勢圖、4-bit 模型載入 |
 | Week 2 | ✅ 完成 | RAG pipeline：新聞載入、ChromaDB、語意檢索 |
-| Week 3 | 🔲 進行中 | Agent 框架：ReAct Agent + 工具整合 + 對話記憶 |
+| Week 3 | ✅ 完成 | Agent 框架：文字式 ReAct StateGraph + 5 工具整合 + MemorySaver 記憶 |
 | Week 4 | 🔲 待開始 | 推理測試：長時程規劃、多工具呼叫、評估框架 |
 | Week 5 | 🔲 待開始 | Guardrails：幻覺處理、自我修復、優化對比 |
 | Week 6 | 🔲 待開始 | UI 包裝與期末報告 |

@@ -1,3 +1,9 @@
+# Initial Project Plan
+
+> This document preserves the original early-stage project plan. For current implementation, follow `README.md`, `week3_progress.md`, and `model_ablation_plan.md`.
+
+---
+
 # 專案名稱：Agentic RAG for Stock Market Analysis: Integrating Tool Use and LLM Reasoning
 > 中文名稱：基於代理人 RAG 架構之股市分析：結合工具呼叫與大型語言模型推理
 

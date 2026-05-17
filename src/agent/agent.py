@@ -1,3 +1,4 @@
+import json
 import re
 from typing import Annotated, TypedDict
 from transformers import pipeline as hf_pipeline
@@ -31,6 +32,15 @@ _TOOL_DESCRIPTIONS = "\n".join(
     f"- {t.name}: {t.description.split(chr(10))[0]}" for t in TOOLS
 )
 
+_TOOL_INPUT_FORMATS = """Tool input formats:
+- tool_get_stock_history: <ticker>, <period>  (example: 2330.TW, 3mo)
+- tool_plot_stock_chart: <ticker>, <period>  (example: 2330.TW, 3mo)
+- tool_get_fundamental_data: <ticker>  (example: 2330.TW)
+- tool_search_financial_news: <ticker>  (example: 2330.TW)
+- tool_search_knowledge_base: <query>  (example: 半導體 AI 需求)
+
+Valid periods: 1mo, 3mo, 6mo, 1y."""
+
 # ── ReAct prompt ─────────────────────────────────────────────────────────────
 
 _REACT_TEMPLATE = """You are a financial analysis assistant. Always use the available tools to look up real data before answering.
@@ -38,6 +48,8 @@ Respond in the same language as the user.
 
 Available tools:
 {tool_descriptions}
+
+{tool_input_formats}
 
 Format your response EXACTLY like this (no deviations):
 
@@ -78,6 +90,27 @@ _ACTION_RE = re.compile(r"Action:\s*(.+)", re.IGNORECASE)
 _INPUT_RE  = re.compile(r"Action Input:\s*(.+)", re.IGNORECASE)
 _FINAL_RE  = re.compile(r"Final Answer:\s*(.+)", re.DOTALL | re.IGNORECASE)
 
+_PERIOD_ALIASES = {
+    "1 month": "1mo",
+    "one month": "1mo",
+    "1m": "1mo",
+    "1mo": "1mo",
+    "3 month": "3mo",
+    "3 months": "3mo",
+    "three months": "3mo",
+    "3m": "3mo",
+    "3mo": "3mo",
+    "6 month": "6mo",
+    "6 months": "6mo",
+    "six months": "6mo",
+    "6m": "6mo",
+    "6mo": "6mo",
+    "1 year": "1y",
+    "one year": "1y",
+    "1yr": "1y",
+    "1y": "1y",
+}
+
 
 def _parse_action(text: str):
     """Return the last (tool_name, tool_input) pair in text, only if it's a known tool."""
@@ -96,6 +129,45 @@ def _parse_action(text: str):
 def _parse_final(text: str):
     m = _FINAL_RE.search(text)
     return m.group(1).strip() if m else None
+
+
+def _normalise_period(value: str, default: str = "3mo") -> str:
+    value = value.strip().lower()
+    return _PERIOD_ALIASES.get(value, value if value in {"1mo", "3mo", "6mo", "1y"} else default)
+
+
+def _coerce_tool_input(tool_name: str, tool_input: str):
+    """Convert text ReAct inputs into LangChain tool arguments.
+
+    Small local LLMs often emit inputs like "2330.TW, 3mo". LangChain will
+    otherwise pass that whole string as the first argument, so we normalize
+    common financial-tool inputs before invoking the tool.
+    """
+    raw = tool_input.strip().strip("`")
+    if raw.startswith("{") and raw.endswith("}"):
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
+
+    if tool_name in {"tool_get_stock_history", "tool_plot_stock_chart"}:
+        parts = [p.strip() for p in re.split(r"[,;\n]+", raw) if p.strip()]
+        ticker = parts[0] if parts else raw
+        period = _normalise_period(parts[1]) if len(parts) > 1 else "3mo"
+        return {"ticker": ticker, "period": period}
+
+    if tool_name == "tool_get_fundamental_data":
+        ticker = re.split(r"[,;\n]+", raw)[0].strip()
+        return {"ticker": ticker}
+
+    if tool_name == "tool_search_financial_news":
+        ticker = re.split(r"[,;\n]+", raw)[0].strip()
+        return {"query": ticker}
+
+    if tool_name == "tool_search_knowledge_base":
+        return {"query": raw}
+
+    return raw
 
 
 # ── LLM factory ──────────────────────────────────────────────────────────────
@@ -128,6 +200,7 @@ def make_agent_node(llm, prompt_template: PromptTemplate):
     def agent_node(state: ReActState) -> ReActState:
         full_prompt = prompt_template.format(
             tool_descriptions=_TOOL_DESCRIPTIONS,
+            tool_input_formats=_TOOL_INPUT_FORMATS,
             history=state["history"],
             input=state["input"],
         )
@@ -148,11 +221,7 @@ def tool_node(state: ReActState) -> ReActState:
     if tool_name and tool_name in _TOOL_MAP:
         try:
             tool = _TOOL_MAP[tool_name]
-            # Try dict input first (for tools with named args)
-            try:
-                result = tool.invoke(tool_input)
-            except Exception:
-                result = tool.invoke({"query": tool_input})
+            result = tool.invoke(_coerce_tool_input(tool_name, tool_input))
         except Exception as e:
             result = f"Tool error: {e}"
     else:

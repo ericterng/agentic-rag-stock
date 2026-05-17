@@ -22,6 +22,190 @@
 
 ---
 
+## 2026-05-17 Baseline Verification Update
+
+本次重新驗證 Week 1~3，是為了在進入 Week 4 model ablation（Llama/Qwen 比較）前，先確認目前 baseline 是否穩定可重現。
+
+### ✅ 環境確認
+
+- 正確 Python 環境：
+  `C:\Users\User\anaconda3\envs\pytorch\python.exe`
+- Conda 安裝位置：
+  `C:\Users\User\anaconda3`
+- 目前一般 PowerShell shell 中 `conda` 沒有進 PATH，因此如果 `conda activate pytorch` 失敗，可以直接使用上面的 env Python 路徑執行驗證指令。
+- `pytorch` env 版本重點：
+  - Python 3.11.13
+  - torch 2.5.1
+  - CUDA 可用：✅
+  - transformers 4.57.6
+  - langchain-chroma 1.1.0
+
+### ✅ Week 1 工具層驗證
+
+| 項目 | 結果 |
+|---|---|
+| `get_stock_history("2330.TW", "1mo")` | ✅ 通過 |
+| `get_fundamental_data("0050.TW")` | ✅ 通過 |
+| `tool_plot_stock_chart("2330.TW", "1mo")` | ✅ 通過 |
+
+驗證結果摘要：
+
+- `2330.TW` 最近資料可成功抓取。
+- `0050.TW` 基本面可成功抓取，P/E ratio 約 `31.216623`。
+- 圖表可成功輸出到 `outputs/charts/`。
+
+### ✅ Week 2 RAG 層驗證
+
+| 項目 | 結果 |
+|---|---|
+| `data/vectordb/chroma.sqlite3` | ✅ 存在 |
+| `BAAI/bge-m3` Hugging Face cache | ✅ 存在 |
+| `tool_search_knowledge_base("半導體 AI 需求")` | ✅ 通過 |
+
+RAG query 範例：
+
+```text
+半導體 AI 需求
+```
+
+回傳內容包含 semiconductor / AI infrastructure demand 相關新聞與摘要，表示 ChromaDB 與 embedding 檢索流程可用。
+
+### ✅ Week 3 Agent 層驗證
+
+| 項目 | 結果 |
+|---|---|
+| `meta-llama/Meta-Llama-3-8B-Instruct` 4-bit 載入 | ✅ 通過 |
+| Device | `cuda:0` |
+| Agent graph import | ✅ 通過 |
+| 5 個 tool registry | ✅ 通過 |
+| MemorySaver | ✅ 通過 |
+| Llama baseline 端對端查詢 | ✅ 修正後通過 |
+
+Llama baseline 載入結果：
+
+```text
+Model loaded: meta-llama/Meta-Llama-3-8B-Instruct
+Device: cuda:0
+loaded tokenizer PreTrainedTokenizerFast
+loaded model LlamaForCausalLM
+```
+
+端對端測試 prompt：
+
+```text
+What is the recent stock price performance of 2330.TW?
+```
+
+成功 observations：
+
+```text
+Stock: 2330.TW | Period: 3mo
+Latest Close: 2265.00
+Period High:  2345.00
+Period Low:   1760.00
+Avg Volume:   38227851
+Price Change: 19.60%
+Trading Days: 56
+```
+
+圖表工具也成功輸出：
+
+```text
+Chart saved to: C:\Data_science\Final\outputs\charts\2330.TW_20260517_153623.png
+```
+
+Final Answer 正確使用股價 observation：
+
+```text
+The recent stock price performance of 2330.TW has been positive,
+with a price change of 19.60% over the past 3 months.
+```
+
+### 🔧 本次發現並修正的 Week 3 bugs
+
+#### Bug 4：多參數工具輸入解析錯誤
+
+**問題**：
+Llama 會產生：
+
+```text
+Action Input: 2330.TW, 3mo
+```
+
+原本 `tool_node` 會把整串當成 ticker：
+
+```text
+ticker = "2330.TW, 3mo"
+```
+
+導致 yfinance 查詢失敗。
+
+**修正**：
+在 `src/agent/agent.py` 新增 `_coerce_tool_input()`，在呼叫 tool 前將文字式 ReAct input 轉成正確參數。
+
+修正後：
+
+```python
+"2330.TW, 3mo" -> {"ticker": "2330.TW", "period": "3mo"}
+"2330.TW, 1 month" -> {"ticker": "2330.TW", "period": "1mo"}
+```
+
+同時在 ReAct prompt 補上各工具輸入格式，降低模型產生錯誤 input 的機率。
+
+#### Bug 5：Financial news tool schema mismatch
+
+**問題**：
+Agent 原本傳入：
+
+```python
+{"ticker": "2330.TW"}
+```
+
+但 `tool_search_financial_news` 的參數名稱是 `query`。
+
+**修正**：
+`_coerce_tool_input()` 對 `tool_search_financial_news` 改成傳：
+
+```python
+{"query": "2330.TW"}
+```
+
+驗證結果：
+
+```text
+Action: tool_search_financial_news
+Action Input: 2330.TW
+Observation: Latest news for '2330.TW':
+...
+TSMC predicts semiconductor market will reach $1.5 trillion by 2030
+```
+
+### 💾 儲存空間與 Hugging Face cache
+
+- C 槽清理前剩餘約 `13.6 GB`，不適合直接下載新模型。
+- Hugging Face cache 中已存在：
+  - `models--meta-llama--Meta-Llama-3-8B-Instruct`：約 `14.97 GB`
+  - `models--BAAI--bge-m3`：約 `6.37 GB`
+- 已刪除未使用的 Mistral cache：
+  - `models--mistralai--Mistral-7B-Instruct-v0.3`：約 `13.5 GB`
+- 清理後 C 槽剩餘約 `42.29 GB`。
+
+### 目前結論
+
+Week 1~3 baseline 已完成重新驗證。修正後，Llama 3 8B 4-bit Agent 能完成：
+
+1. ReAct 推理
+2. 股價工具呼叫
+3. 多參數工具輸入解析
+4. 圖表生成
+5. RAG 查詢
+6. financial news tool 呼叫
+7. 基於 Observation 的 Final Answer
+
+因此可以進入 Week 4 的固定題組評估與 Llama/Qwen model ablation。
+
+---
+
 ## ⚠️ 重要架構說明（與原計畫不同，請務必閱讀）
 
 原計畫使用 `langchain.agents.create_react_agent` + `ConversationBufferMemory`，但 **LangChain 1.2.17 已完全移除這些 API**。

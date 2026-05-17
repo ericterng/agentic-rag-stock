@@ -5,6 +5,13 @@
 
 系統整合 yfinance 股價與基本面資料、財經新聞、ChromaDB 向量資料庫、BAAI/bge-m3 embeddings、4-bit 開源 LLM，以及自製文字式 ReAct StateGraph，支援台股案例（如 `2330.TW`、`0050.TW`）與中文金融查詢。
 
+For contributors continuing the project:
+
+- Start with this `README.md` for the current project direction.
+- Read `week3_progress.md` for the verified Week 1-3 baseline status and recent Agent fixes.
+- Follow `model_ablation_plan.md` for Week 4 Llama/Qwen model comparison.
+- Historical planning documents are preserved under `docs/`.
+
 ---
 
 ## Research Question
@@ -145,7 +152,7 @@ Week 4 的評估結果將作為 Week 5 guardrails 與 ablation study 的 baselin
 |---|---|---|
 | Week 1 | ✅ 完成 | 技能建置：股價、基本面、走勢圖、4-bit 模型載入 |
 | Week 2 | ✅ 完成 | RAG pipeline：新聞載入、ChromaDB、語意檢索 |
-| Week 3 | ✅ 完成 | Agent 框架：文字式 ReAct StateGraph + 5 工具整合 + MemorySaver 記憶 |
+| Week 3 | ✅ 完成 | Agent 框架：文字式 ReAct StateGraph + 5 工具整合 + MemorySaver 記憶；2026-05-17 baseline verification 通過 |
 | Week 4 | 🔲 待開始 | Evaluation & Error Analysis：單工具、多工具、RAG、越界問題測試 |
 | Week 5 | 🔲 待開始 | Guardrails and Ablation Study：幻覺處理、拒答策略、優化前後比較 |
 | Week 6 | 🔲 待開始 | Demo UI and Final Report：展示介面、期末報告與結果整理 |
@@ -165,6 +172,12 @@ Week 4 的評估結果將作為 Week 5 guardrails 與 ablation study 的 baselin
 ```bash
 conda activate pytorch
 pip install -r requirements.txt
+```
+
+If `conda` is not available in the current shell PATH, use the environment Python directly:
+
+```powershell
+C:\Users\User\anaconda3\envs\pytorch\python.exe
 ```
 
 ### 2. 設定環境變數
@@ -254,8 +267,10 @@ agentic-rag-stock/
 │   ├── week1_skills.ipynb      # Week 1：技能測試（股價、基本面、圖表、模型載入）
 │   ├── week2_rag.ipynb         # Week 2：RAG pipeline 測試
 │   ├── week3_agent.ipynb       # Week 3：Agent 整合測試（完成）
-│   ├── week4_reasoning.ipynb   # Week 4：Evaluation & Error Analysis（待完成）
-│   └── week5_guardrails.ipynb  # Week 5：Guardrails and Ablation Study（待完成）
+│   └── week4_reasoning.ipynb   # Week 4：Evaluation & Error Analysis（草稿，尚未納入目前 commit）
+│
+│   # Planned:
+│   # week5_guardrails.ipynb    # Week 5：Guardrails and Ablation Study
 │
 ├── src/
 │   ├── config.py               # 集中管理路徑與參數（模型名稱、資料夾路徑）
@@ -283,9 +298,14 @@ agentic-rag-stock/
 ├── outputs/
 │   └── charts/                 # 生成的股價走勢圖（PNG）
 │
+├── docs/
+│   ├── initial_project_plan.md  # 初版專題規劃（歷史參考，不作為目前實作依據）
+│   └── legacy_README.md         # README 舊版備份
+│
 ├── .env                        # API Keys（不 commit）
 ├── .env.example                # 環境變數範本
 ├── requirements.txt            # 套件依賴
+├── model_ablation_plan.md      # Week 4 Llama/Qwen 模型比較計畫
 ├── week1,2_progress.md         # Week 1 & 2 進度紀錄與已知問題
 └── week3_progress.md           # Week 3 Agent 架構與測試紀錄
 ```

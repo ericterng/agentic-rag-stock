@@ -169,12 +169,28 @@ Week 4 的評估結果將作為 Week 5 guardrails 與 ablation study 的 baselin
 
 ### 1. 啟動環境並安裝套件
 
+If the `pytorch` conda environment already exists:
+
 ```bash
 conda activate pytorch
 pip install -r requirements.txt
 ```
 
-If `conda` is not available in the current shell PATH, use the environment Python directly:
+If the environment does not exist yet:
+
+```bash
+conda create -n pytorch python=3.11 -y
+conda activate pytorch
+pip install -r requirements.txt
+```
+
+If `conda` is not available in the current shell PATH, open Anaconda Prompt or use the Python executable inside your own conda environment directly:
+
+```powershell
+C:\Users\<YOUR_USERNAME>\anaconda3\envs\pytorch\python.exe
+```
+
+On the verified local machine, the path was:
 
 ```powershell
 C:\Users\User\anaconda3\envs\pytorch\python.exe
@@ -186,6 +202,18 @@ C:\Users\User\anaconda3\envs\pytorch\python.exe
 cp .env.example .env
 # 編輯 .env，填入 HUGGINGFACE_TOKEN
 ```
+
+Model weights and embedding models are **not included in this repository**. The first run may download them into the local Hugging Face cache, so make sure you have enough disk space.
+
+Required/expected downloads:
+
+| Asset | Why it is needed | Approx. cache size observed |
+|---|---|---:|
+| `meta-llama/Meta-Llama-3-8B-Instruct` | Week 3 baseline LLM | ~15 GB |
+| `BAAI/bge-m3` | RAG embedding model | ~6.4 GB |
+| `Qwen/Qwen3-4B-Instruct-2507` | Week 4 model ablation candidate | download only when running Qwen tests |
+
+Llama models may require Hugging Face access approval and a valid `HUGGINGFACE_TOKEN`.
 
 ### 3. 確認 GPU 可用
 

@@ -3,7 +3,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from src.config import MODEL_NAME, HUGGINGFACE_TOKEN
 
 
-def load_model_4bit(model_name: str = None):
+def load_model_4bit(model_name: str = None, local_files_only: bool = False):
     """Load LLM with 4-bit quantization (NF4 + double quant).
 
     Works on RTX 4060 (8GB VRAM) with 7-8B parameter models.
@@ -20,6 +20,7 @@ def load_model_4bit(model_name: str = None):
     tokenizer = AutoTokenizer.from_pretrained(
         model_name,
         token=HUGGINGFACE_TOKEN,
+        local_files_only=local_files_only,
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -29,6 +30,7 @@ def load_model_4bit(model_name: str = None):
         quantization_config=bnb_config,
         device_map="auto",
         token=HUGGINGFACE_TOKEN,
+        local_files_only=local_files_only,
     )
 
     print(f"Model loaded: {model_name}")

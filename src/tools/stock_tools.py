@@ -12,6 +12,8 @@ from src.config import CHARTS_DIR
 def get_stock_history(ticker: str, period: str = "3mo") -> pd.DataFrame:
     stock = yf.Ticker(ticker)
     df = stock.history(period=period)
+    if "Close" in df.columns:
+        df = df.dropna(subset=["Close"])
     if df.empty:
         raise ValueError(f"No data found for ticker: {ticker}")
     return df

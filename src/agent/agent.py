@@ -249,6 +249,23 @@ def should_continue(state: ReActState) -> str:
     return "end"
 
 
+def make_should_continue(max_iterations: int = 6):
+    def _should_continue(state: ReActState) -> str:
+        if state.get("iterations", 0) >= max_iterations:
+            return "force_final"
+        final = _parse_final(state["scratchpad"])
+        if final:
+            state["output"] = final
+            return "end"
+        tool_name, _ = _parse_action(state["scratchpad"])
+        if tool_name:
+            return "tool"
+        if "Observation:" in state["scratchpad"]:
+            return "force_final"
+        return "end"
+    return _should_continue
+
+
 _THOUGHT_RE = re.compile(r"Thought:\s*(.+)", re.IGNORECASE)
 
 
@@ -280,7 +297,13 @@ def finalize_node(state: ReActState) -> ReActState:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def create_agent_graph(tokenizer, model, checkpointer: MemorySaver = None):
+def create_agent_graph(
+    tokenizer,
+    model,
+    checkpointer: MemorySaver = None,
+    max_new_tokens: int = 512,
+    max_iterations: int = 6,
+):
     """Build a text-based ReAct LangGraph agent.
 
     Usage:
@@ -289,7 +312,7 @@ def create_agent_graph(tokenizer, model, checkpointer: MemorySaver = None):
         result = graph.invoke({"input": "...", "history": "", "scratchpad": "", "output": "", "iterations": 0}, config)
         print(result["output"])
     """
-    llm = create_llm(tokenizer, model)
+    llm = create_llm(tokenizer, model, max_new_tokens=max_new_tokens)
     prompt = PromptTemplate.from_template(_REACT_TEMPLATE)
 
     builder = StateGraph(ReActState)
@@ -299,7 +322,7 @@ def create_agent_graph(tokenizer, model, checkpointer: MemorySaver = None):
     builder.add_node("finalize", finalize_node)
 
     builder.set_entry_point("agent")
-    builder.add_conditional_edges("agent", should_continue, {
+    builder.add_conditional_edges("agent", make_should_continue(max_iterations), {
         "tool": "tool",
         "force_final": "force_final",
         "end": "finalize",

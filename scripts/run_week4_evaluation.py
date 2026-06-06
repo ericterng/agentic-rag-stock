@@ -125,6 +125,7 @@ def main() -> int:
     parser.add_argument("--max-new-tokens", type=int, default=384)
     parser.add_argument("--max-iterations", type=int, default=4)
     parser.add_argument("--limit", type=int, default=None, help="Run only the first N questions.")
+    parser.add_argument("--only-ids", default="", help="Comma-separated question IDs to run, such as W4-Q08,W4-Q09,W4-Q10.")
     args = parser.parse_args()
 
     question_path = ROOT / args.questions
@@ -132,8 +133,14 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     questions = json.loads(question_path.read_text(encoding="utf-8"))
+    if args.only_ids:
+        wanted = {item.strip() for item in args.only_ids.split(",") if item.strip()}
+        questions = [item for item in questions if item["id"] in wanted]
     if args.limit is not None:
         questions = questions[: args.limit]
+
+    if not questions:
+        raise ValueError("No questions selected for evaluation.")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = args.model_name.replace("/", "__")

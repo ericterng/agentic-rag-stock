@@ -45,6 +45,10 @@ Valid periods: 1mo, 3mo, 6mo, 1y."""
 
 _REACT_TEMPLATE = """You are a financial analysis assistant. Always use the available tools to look up real data before answering.
 Respond in the same language as the user.
+Do not provide guaranteed returns, guaranteed price movement, or a single stock that is certain to rise.
+If the user asks for a guaranteed investment outcome, refuse without using tools.
+If the question explicitly asks to use the knowledge base, use tool_search_knowledge_base once and then answer from that Observation.
+Do not call extra tools after you already have enough evidence to answer.
 
 Available tools:
 {tool_descriptions}
@@ -129,6 +133,49 @@ def _parse_action(text: str):
 def _parse_final(text: str):
     m = _FINAL_RE.search(text)
     return m.group(1).strip() if m else None
+
+
+def _contains_cjk(text: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text)
+
+
+def _is_guaranteed_investment_request(text: str) -> bool:
+    lowered = text.lower()
+    chinese_signals = ["保證", "一定", "穩賺", "漲停", "明天會漲", "直接告訴我買"]
+    english_signals = ["guarantee", "guaranteed", "sure profit", "certain to rise", "will definitely rise"]
+    return any(signal in text for signal in chinese_signals) or any(signal in lowered for signal in english_signals)
+
+
+def _is_out_of_scope_request(text: str) -> bool:
+    lowered = text.lower()
+    out_of_scope_signals = ["貪吃蛇", "遊戲", "寫程式", "snake game", "write a game", "write code"]
+    finance_signals = ["股票", "投資", "金融", "股價", "etf", "fundamental", "market", "stock"]
+    return any(signal in lowered for signal in out_of_scope_signals) and not any(signal in lowered for signal in finance_signals)
+
+
+def _is_knowledge_base_question(text: str) -> bool:
+    lowered = text.lower()
+    return "知識庫" in text or "knowledge base" in lowered
+
+
+def _guardrail_response(user_input: str) -> str | None:
+    if _is_guaranteed_investment_request(user_input):
+        if _contains_cjk(user_input):
+            return (
+                "我不能保證或推薦明天一定會漲停的股票，也不能把不確定的市場結果包裝成確定建議。"
+                "我可以改為協助你根據股價、基本面、新聞與風險因素做資料化分析。"
+            )
+        return (
+            "I cannot guarantee or recommend a stock that will rise tomorrow. "
+            "I can help analyze stocks using price data, fundamentals, news, and risk factors instead."
+        )
+
+    if _is_out_of_scope_request(user_input):
+        if _contains_cjk(user_input):
+            return "我只能協助金融、投資與市場分析相關問題。"
+        return "I can only help with financial and investment questions."
+
+    return None
 
 
 def _normalise_period(value: str, default: str = "3mo") -> str:
@@ -216,6 +263,17 @@ def make_agent_node(llm, prompt_template: PromptTemplate):
     return agent_node
 
 
+def guardrail_node(state: ReActState) -> ReActState:
+    final = _guardrail_response(state["input"])
+    if final:
+        state["output"] = final
+        state["scratchpad"] += (
+            "\nThought: This request should be refused by policy/domain guardrails."
+            f"\nFinal Answer: {final}"
+        )
+    return state
+
+
 def tool_node(state: ReActState) -> ReActState:
     tool_name, tool_input = _parse_action(state["scratchpad"])
     if tool_name and tool_name in _TOOL_MAP:
@@ -257,6 +315,8 @@ def make_should_continue(max_iterations: int = 6):
         if final:
             state["output"] = final
             return "end"
+        if _is_knowledge_base_question(state["input"]) and state.get("iterations", 0) >= 1:
+            return "force_final"
         tool_name, _ = _parse_action(state["scratchpad"])
         if tool_name:
             return "tool"
@@ -266,15 +326,26 @@ def make_should_continue(max_iterations: int = 6):
     return _should_continue
 
 
+def guardrail_route(state: ReActState) -> str:
+    return "end" if state.get("output") else "agent"
+
+
 _THOUGHT_RE = re.compile(r"Thought:\s*(.+)", re.IGNORECASE)
 
 
 def make_force_final_node(llm):
     """Generate Final Answer directly from accumulated observations."""
     def force_final_node(state: ReActState) -> ReActState:
+        language_instruction = (
+            "請用繁體中文回答，不要改用英文。"
+            if _contains_cjk(state["input"])
+            else "Answer in English."
+        )
         prompt = (
-            state["scratchpad"]
-            + "\nBased on the Observation above, answer the user's question concisely.\nFinal Answer:"
+            f"User question: {state['input']}\n"
+            + state["scratchpad"]
+            + f"\n{language_instruction}\n"
+            + "Based only on the Observation above, answer the user's question concisely.\nFinal Answer:"
         )
         raw = llm.invoke(prompt)
         state["output"] = raw.split("\n")[0].strip()
@@ -316,12 +387,17 @@ def create_agent_graph(
     prompt = PromptTemplate.from_template(_REACT_TEMPLATE)
 
     builder = StateGraph(ReActState)
+    builder.add_node("guardrail", guardrail_node)
     builder.add_node("agent", make_agent_node(llm, prompt))
     builder.add_node("tool", tool_node)
     builder.add_node("force_final", make_force_final_node(llm))
     builder.add_node("finalize", finalize_node)
 
-    builder.set_entry_point("agent")
+    builder.set_entry_point("guardrail")
+    builder.add_conditional_edges("guardrail", guardrail_route, {
+        "agent": "agent",
+        "end": "finalize",
+    })
     builder.add_conditional_edges("agent", make_should_continue(max_iterations), {
         "tool": "tool",
         "force_final": "force_final",

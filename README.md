@@ -274,6 +274,28 @@ MODEL_NAME=meta-llama/Meta-Llama-3-8B-Instruct
 # MODEL_NAME=Qwen/Qwen3-8B  # Qwen 8B 對照，需確認 VRAM 是否穩定
 ```
 
+### 執行 Ablation Study
+
+ 對單一模型執行全部3種設定 (僅LLM、LLM + 工具、完整系統)：
+
+```bash
+conda activate pytorch
+cd C:\Data_science\Final
+
+python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct
+python ablation_scripts/run_ablation.py --model meta-llama/Llama-3.1-8B-Instruct
+python ablation_scripts/run_ablation.py --model Qwen/Qwen3-4B-Instruct-2507
+python ablation_scripts/run_ablation.py --model Qwen/Qwen3-8B
+```
+
+CSV 儲存至 outputs/evaluation/，每個模型與設定各自一份。
+
+在執行全部10題前先做2題快速驗證:
+
+```bash
+python ablation_scripts/run_ablation.py --model Qwen/Qwen3-4B-Instruct-2507 --limit 2
+```
+
 ---
 
 ## Known Limitations
@@ -303,6 +325,7 @@ agentic-rag-stock/
 ├── src/
 │   ├── config.py               # 集中管理路徑與參數（模型名稱、資料夾路徑）
 │   ├── model.py                # 4-bit 量化模型載入（NF4 + bitsandbytes）
+|   ├── ablation_engine.py      # 消融實驗內部邏輯     
 │   │
 │   ├── tools/
 │   │   ├── stock_tools.py      # 股價歷史、基本面、走勢圖（含 @tool 包裝）
@@ -317,7 +340,18 @@ agentic-rag-stock/
 │   └── agent/
 │       ├── agent.py            # 文字式 ReAct StateGraph（Week 3）
 │       ├── memory.py           # MemorySaver 多輪對話記憶（Week 3）
+|       ├── agent_ablation.py   # 執行消融實驗的 StateGraph 邏輯
 │       └── guardrails.py       # 防護欄與 Output Parser（Week 5，待完成）
+│
+├── ablation_scripts/
+│   └── run_ablation.py         # 消融實驗
+│
+├── ablation_outputs/
+│   ├── charts/
+|   |   └── png ...             # 股價走勢圖
+|   |
+|   └── evaluation
+|       └── csv ...             # 消融實驗結果
 │
 ├── data/
 │   ├── raw/                    # 原始資料（PDF 等，不 commit）

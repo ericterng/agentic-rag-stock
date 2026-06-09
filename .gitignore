@@ -1,5 +1,6 @@
 .env
 data/
+ablation_outputs/
 outputs/
 __pycache__/
 *.pyc

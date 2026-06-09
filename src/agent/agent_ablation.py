@@ -105,8 +105,8 @@ Thought: """
 class ReActState(TypedDict):
     input: str
     history: str
-    scratchpad: str       
-    output: str           
+    scratchpad: str
+    output: str
     iterations: int
 
 
@@ -144,10 +144,10 @@ def _parse_action(text: str, allowed_tool_names: set = None):
     inputs = _INPUT_RE.findall(text)
     if not actions or not inputs:
         return None, None
-    
+
     tool_name = actions[-1].strip()
     tool_input = inputs[-1].strip()
-    
+
     # Use the filtered active set if provided, fallback to the global list if not
     valid_set = allowed_tool_names if allowed_tool_names is not None else _ALL_TOOL_NAMES
     if tool_name in valid_set:
@@ -271,7 +271,7 @@ def _trim_at_observation(text: str) -> str:
 def make_agent_node(llm, prompt_template: PromptTemplate, tool_descriptions: str = "", tool_input_formats: str = ""):
     def agent_node(state: ReActState) -> ReActState:
         fmt_kwargs = {"history": state["history"], "input": state["input"]}
-        if tool_descriptions:                      
+        if tool_descriptions:
             fmt_kwargs["tool_descriptions"] = tool_descriptions
             fmt_kwargs["tool_input_formats"] = tool_input_formats
         full_prompt = prompt_template.format(**fmt_kwargs)
@@ -312,7 +312,7 @@ def should_continue(state: ReActState) -> str:
     return "end"
 
 
-def make_should_continue(max_iterations: int = 6):
+def make_should_continue(max_iterations: int = 6, allowed_tool_names: set = None):
     def _should_continue(state: ReActState) -> str:
         if state.get("iterations", 0) >= max_iterations:
             return "force_final"
@@ -322,7 +322,7 @@ def make_should_continue(max_iterations: int = 6):
             return "end"
         if _is_knowledge_base_question(state["input"]) and state.get("iterations", 0) >= 1:
             return "force_final"
-        tool_name, _ = _parse_action(state["scratchpad"])
+        tool_name, _ = _parse_action(state["scratchpad"], allowed_tool_names)
         if tool_name:
             return "tool"
         if "Observation:" in state["scratchpad"]:
@@ -379,7 +379,7 @@ def create_agent_graph(
     checkpointer: MemorySaver = None,
     max_new_tokens: int = 512,
     max_iterations: int = 6,
-    ablation_mode: str = "full_suite",   
+    ablation_mode: str = "full_suite",
 ):
     # Resolve tools and prompt based on mode
     if ablation_mode == "llm_only":
@@ -399,12 +399,13 @@ def create_agent_graph(
         tool_fmt = _TOOL_INPUT_FORMATS_ALL
 
     active_tool_map = _build_tool_map(active_tools)
+    active_tool_names = set(active_tool_map)
 
     llm = create_llm(tokenizer, model, max_new_tokens=max_new_tokens)
 
     # ── nodes (pass active_tool_map into tool_node via closure) ──
     def _tool_node(state: ReActState) -> ReActState:
-        tool_name, tool_input = _parse_action(state["scratchpad"])
+        tool_name, tool_input = _parse_action(state["scratchpad"], active_tool_names)
         if tool_name and tool_name in active_tool_map:
             try:
                 result = active_tool_map[tool_name].invoke(_coerce_tool_input(tool_name, tool_input))
@@ -432,7 +433,7 @@ def create_agent_graph(
     if ablation_mode == "llm_only":
         builder.add_edge("agent", "finalize")
     else:
-        builder.add_conditional_edges("agent", make_should_continue(max_iterations), {
+        builder.add_conditional_edges("agent", make_should_continue(max_iterations, active_tool_names), {
             "tool": "tool",
             "force_final": "force_final",
             "end": "finalize",

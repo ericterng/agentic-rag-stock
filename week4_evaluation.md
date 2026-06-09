@@ -134,22 +134,22 @@ This means the fixed 10-question benchmark is now executable across all question
 
 ### Error Analysis Notes
 
-1. **Tool selection is usually recoverable but inefficient.**  
+1. **Tool selection is usually recoverable but inefficient.**
    The expected tool appears in most successful tasks, but Llama often continues calling extra tools after enough evidence is already available.
 
-2. **Single-tool fundamentals are the strongest baseline behavior.**  
+2. **Single-tool fundamentals are the strongest baseline behavior.**
    W4-Q03 is the cleanest result because the model chose `tool_get_fundamental_data` and stopped without unnecessary tools.
 
-3. **Chinese instruction following is weak.**  
+3. **Chinese instruction following is weak.**
    Many final answers are in English even though the user questions are Chinese. This should be scored under Chinese fluency and instruction following.
 
-4. **Prompt-only guardrails were not sufficient.**  
+4. **Prompt-only guardrails were not sufficient.**
    W4-Q09 originally showed that the prompt alone did not reliably reject guaranteed investment advice. A deterministic pre-agent guardrail now catches this case before tool use.
 
-5. **A stock-data cleaning fix was needed.**  
+5. **A stock-data cleaning fix was needed.**
    `get_stock_history()` now drops rows where `Close` is missing before calculating latest close and price change.
 
-6. **Chinese instruction following remains a residual baseline weakness.**  
+6. **Chinese instruction following remains a residual baseline weakness.**
    Even after strengthening the final-answer prompt, Llama may answer Chinese RAG questions in English. This should remain a manual scoring item rather than being hidden.
 
 ## Next Steps
@@ -158,3 +158,60 @@ This means the fixed 10-question benchmark is now executable across all question
 2. Optionally run one strict full 10-question baseline after the targeted fixes.
 3. Re-run the same fixed question set with `Qwen/Qwen3-4B-Instruct-2507` for the first model ablation.
 4. Compare Llama and Qwen on tool efficiency, refusal correctness, Chinese fluency, latency, and hallucination count.
+
+## Ablation Branch Integration Validation
+
+The `week4-ablation` branch was reviewed before merging into `master`. The branch already implemented the main ablation structure:
+
+| Setting | Meaning |
+|---|---|
+| `llm_only` | Model answers directly without tool execution |
+| `llm_tools` | Model can use market/news/chart tools, but not RAG |
+| `full_suite` | Model uses ReAct, tools, RAG, and guardrails |
+
+Before merging, the following integration fixes were made:
+
+1. **README output path corrected.**
+   The script writes to `ablation_outputs/evaluation/`, so the README was updated to match the actual output directory.
+
+2. **Offline cache loading added.**
+   `ablation_scripts/run_ablation.py` now supports `--local-files-only`, which is important when testing models already downloaded in the local Hugging Face cache.
+
+3. **Action parsing cleaned.**
+   Parsed actions are filtered by the enabled tool set for each ablation setting. Non-tool strings such as `Final Answer` and `None` are retained only as raw actions and are not counted as tool calls.
+
+4. **Disabled tools excluded from ablation metrics.**
+   In `llm_tools`, `tool_search_knowledge_base` is disabled and should not count as a valid tool action. This keeps the tool-selection metric aligned with the ablation definition.
+
+5. **JSON trace output added.**
+   Ablation runs now write both CSV summaries and JSON traces, preserving scratchpads and observations for later error analysis.
+
+6. **Whitespace cleanup performed.**
+   Trailing whitespace was cleaned so `git diff --check` passes.
+
+Validation performed:
+
+```powershell
+C:\Users\User\anaconda3\envs\pytorch\python.exe -B -c "import ast, pathlib; files=['ablation_scripts/run_ablation.py','src/ablation_engine.py','src/agent/agent_ablation.py']; [ast.parse(pathlib.Path(p).read_text(encoding='utf-8')) for p in files]; print('syntax ok')"
+```
+
+Smoke test command:
+
+```powershell
+$env:HF_HUB_OFFLINE='1'; $env:TRANSFORMERS_OFFLINE='1'
+C:\Users\User\anaconda3\envs\pytorch\python.exe ablation_scripts\run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --limit 1
+```
+
+Targeted guardrail smoke test:
+
+```powershell
+$env:HF_HUB_OFFLINE='1'; $env:TRANSFORMERS_OFFLINE='1'
+C:\Users\User\anaconda3\envs\pytorch\python.exe ablation_scripts\run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --only-ids W4-Q09,W4-Q10
+```
+
+Expected smoke-test outputs:
+
+- `ablation_outputs/evaluation/*_llm_only_*.csv`
+- `ablation_outputs/evaluation/*_llm_tools_*.csv`
+- `ablation_outputs/evaluation/*_full_suite_*.csv`
+- matching JSON trace files for each setting

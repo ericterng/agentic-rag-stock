@@ -32,19 +32,19 @@ Specifically, we ask:
 
 The main novelty of this project lies in system design and reliability analysis rather than predictive performance.
 
-1. **Resource-constrained local deployment**  
+1. **Resource-constrained local deployment**
    The system runs a 4-bit quantized open-source LLM on a consumer laptop GPU（RTX 4060 Laptop 8.6GB VRAM），showing how agentic financial analysis can be built without relying on commercial APIs.
 
-2. **Text-based ReAct tool calling**  
+2. **Text-based ReAct tool calling**
    Since small quantized LLMs may not reliably support structured JSON function calling, we implement a custom text-based ReAct loop using LangGraph StateGraph.
 
-3. **Grounded financial analysis with hybrid tools**  
+3. **Grounded financial analysis with hybrid tools**
    The agent combines market data tools, fundamental data, financial news retrieval, chart generation, and RAG-based knowledge search.
 
-4. **Hallucination and guardrail evaluation**  
+4. **Hallucination and guardrail evaluation**
    The project evaluates whether RAG and guardrails reduce unsupported claims, fabricated numbers, and out-of-scope responses.
 
-5. **Taiwan stock market examples**  
+5. **Taiwan stock market examples**
    The demo focuses on local stock tickers such as `2330.TW` and `0050.TW`, supporting Chinese financial queries and Taiwan-market use cases.
 
 ---
@@ -282,18 +282,19 @@ MODEL_NAME=meta-llama/Meta-Llama-3-8B-Instruct
 conda activate pytorch
 cd C:\Data_science\Final
 
-python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct
-python ablation_scripts/run_ablation.py --model meta-llama/Llama-3.1-8B-Instruct
+python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only
+python ablation_scripts/run_ablation.py --model meta-llama/Llama-3.1-8B-Instruct --local-files-only
 python ablation_scripts/run_ablation.py --model Qwen/Qwen3-4B-Instruct-2507
 python ablation_scripts/run_ablation.py --model Qwen/Qwen3-8B
 ```
 
-CSV 儲存至 outputs/evaluation/，每個模型與設定各自一份。
+CSV and JSON outputs are saved to `ablation_outputs/evaluation/`, with one file per model and ablation setting.
 
 在執行全部10題前先做2題快速驗證:
 
 ```bash
-python ablation_scripts/run_ablation.py --model Qwen/Qwen3-4B-Instruct-2507 --limit 2
+python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --limit 2
+python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --only-ids W4-Q09,W4-Q10
 ```
 
 ---
@@ -325,7 +326,7 @@ agentic-rag-stock/
 ├── src/
 │   ├── config.py               # 集中管理路徑與參數（模型名稱、資料夾路徑）
 │   ├── model.py                # 4-bit 量化模型載入（NF4 + bitsandbytes）
-|   ├── ablation_engine.py      # 消融實驗內部邏輯     
+|   ├── ablation_engine.py      # 消融實驗內部邏輯
 │   │
 │   ├── tools/
 │   │   ├── stock_tools.py      # 股價歷史、基本面、走勢圖（含 @tool 包裝）
@@ -351,7 +352,7 @@ agentic-rag-stock/
 |   |   └── png ...             # 股價走勢圖
 |   |
 |   └── evaluation
-|       └── csv ...             # 消融實驗結果
+|       └── csv/json ...        # 消融實驗結果與 trace
 │
 ├── data/
 │   ├── raw/                    # 原始資料（PDF 等，不 commit）
@@ -376,11 +377,11 @@ agentic-rag-stock/
 
 ## Roadmap
 
-- **Week 4：Evaluation & Error Analysis**  
+- **Week 4：Evaluation & Error Analysis**
   設計約 10 題評估題，涵蓋單工具、多工具、RAG 與越界問題，紀錄工具選擇、答案相關性、數字正確性、幻覺次數，以及 Llama/Qwen 4-bit 模型比較結果。
 
-- **Week 5：Guardrails and Ablation Study**  
+- **Week 5：Guardrails and Ablation Study**
   加入拒答策略、金融風險提醒、證據不足時禁止捏造數字，並比較 guardrails 前後差異。
 
-- **Week 6：Demo UI and Final Report**  
+- **Week 6：Demo UI and Final Report**
   包裝展示介面，整理架構、實驗結果、error analysis 與未來改進方向。

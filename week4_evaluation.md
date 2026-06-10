@@ -177,7 +177,15 @@ evaluation/week4_llama_ablation_summary.md
 
 The full-suite manual scoring, error analysis, and prompt-fix before/after result are consolidated in the same summary file. This keeps the Week 4 evidence in one GitHub-readable place instead of spreading it across several small files.
 
-The GitHub-readable summary combines segmented ablation runs into one 10-question result for each setting:
+The final deterministic `full_suite` manual scoring table is stored in:
+
+```text
+evaluation/week4_full_suite_manual_scores.csv
+```
+
+The recommended deterministic reproduction command for the final Llama `full_suite` benchmark is documented in `evaluation/week4_llama_ablation_summary.md`.
+
+The GitHub-readable summary combines segmented ablation runs into one 10-question result for each setting and now includes the final deterministic Chinese `full_suite` verification after prompt/template fixes:
 
 | Setting | Completed Questions | ReAct Format Success | Auto Tool Selection Accuracy | Notes |
 |---|---:|---:|---:|---|
@@ -185,7 +193,14 @@ The GitHub-readable summary combines segmented ablation runs into one 10-questio
 | `llm_tools` | 10 / 10 | 10 / 10 | 8 / 10 | Market/news/chart tools work; RAG tasks fail because RAG is disabled |
 | `full_suite` | 10 / 10 | 10 / 10 | 10 / 10 | Best automatic tool selection; still needs manual scoring for answer quality |
 
-The raw CSV/JSON files remain under `ablation_outputs/evaluation/` and are intentionally ignored by Git. The markdown summary records which raw files were used and the preliminary error-analysis findings.
+Final Chinese `full_suite` verification after template/completion-planning fixes and `--deterministic` decoding reached `10 / 10` automatic tool selection, `6 / 6` manual numeric correctness on numeric/data-specific questions, and `2 / 2` manual refusal correctness. The final deterministic raw files are:
+
+```text
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_175344.csv
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_175344.json
+```
+
+The raw CSV/JSON files remain under `ablation_outputs/evaluation/` and are intentionally ignored by Git. The markdown summary records which raw files were used and the error-analysis findings.
 
 ## Ablation Branch Integration Validation
 

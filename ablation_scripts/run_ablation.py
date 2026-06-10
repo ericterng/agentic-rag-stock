@@ -54,6 +54,11 @@ def main():
         default=512,
         help="Maximum new tokens generated per model call."
     )
+    parser.add_argument(
+        "--deterministic",
+        action="store_true",
+        help="Disable sampling for reproducible benchmark runs."
+    )
 
     args = parser.parse_args()
 
@@ -83,6 +88,7 @@ def main():
             only_ids=args.only_ids,
             max_iterations=args.max_iterations,
             max_new_tokens=args.max_new_tokens,
+            deterministic=args.deterministic,
         )
 
     print(f"\n   Ablation settings completed for {args.model}: {', '.join(settings)}")

@@ -59,6 +59,7 @@ Do not provide guaranteed returns, guaranteed price movement, or a single stock 
 If the user asks for a guaranteed investment outcome, refuse without using tools.
 If the question explicitly asks to use the knowledge base, use tool_search_knowledge_base once and then answer from that Observation.
 Do not call extra tools after you already have enough evidence to answer.
+For price-performance comparisons between tickers, call tool_get_stock_history for each ticker before answering. If charts are requested, call tool_plot_stock_chart for each ticker as well.
 
 Available tools:
 {tool_descriptions}
@@ -175,6 +176,9 @@ def _is_low_quality_final(final: str, user_input: str) -> bool:
         "we also got",
         "please continue",
         "your answer starts here",
+        "includes its current price",
+        "includes current price",
+        "includes its p/e ratio",
     ]
     if any(phrase in lowered for phrase in bad_phrases):
         return True
@@ -188,8 +192,196 @@ def _is_low_quality_final(final: str, user_input: str) -> bool:
     )
     if numeric_or_data_question and len(final) < 80:
         return True
+    if numeric_or_data_question and not re.search(r"\d+\.\d+|N/A|%", final):
+        return True
 
     return False
+
+
+def _want_chinese(user_input: str) -> bool:
+    return _contains_cjk(user_input)
+
+
+def _extract_tickers(text: str) -> list[str]:
+    seen = []
+    for ticker in re.findall(r"\b\d{4}\.TW\b|(?<!\.)\b[A-Z]{1,5}\b(?!\.)", text):
+        if ticker not in seen and ticker not in {"AI", "ETF", "PE", "P"}:
+            seen.append(ticker)
+    return seen
+
+
+def _parse_stock_observation(obs: str) -> dict | None:
+    m = re.search(r"Stock:\s*([^\s|]+)\s*\|\s*Period:\s*([^\s|]+)", obs)
+    if not m:
+        return None
+
+    def field(name: str) -> str:
+        fm = re.search(rf"{name}:\s*([^\n|]+)", obs)
+        return fm.group(1).strip() if fm else "N/A"
+
+    return {
+        "ticker": m.group(1),
+        "period": m.group(2),
+        "latest_close": field("Latest Close"),
+        "period_high": field("Period High"),
+        "period_low": field("Period Low"),
+        "avg_volume": field("Avg Volume"),
+        "price_change": field("Price Change"),
+        "trading_days": field("Trading Days"),
+    }
+
+
+def _parse_fundamental_observation(obs: str) -> dict | None:
+    m = re.search(r"Fundamentals for (.+?) \(([^)]+)\):", obs)
+    if not m:
+        return None
+
+    def field(name: str) -> str:
+        fm = re.search(rf"{name}:\s*([^\n|]+)", obs)
+        return fm.group(1).strip() if fm else "N/A"
+
+    return {
+        "name": m.group(1).strip(),
+        "ticker": m.group(2).strip(),
+        "current_price": field("Current Price"),
+        "market_cap": field("Market Cap"),
+        "pe_ratio": field("P/E Ratio"),
+        "dividend_yield": field("Dividend Yield"),
+        "high_52w": field("52-Week High"),
+        "low_52w": field("52-Week Low"),
+    }
+
+
+def _parse_chart_observation(obs: str) -> dict | None:
+    m = re.search(r"Chart saved to:\s*(.+)", obs)
+    if not m:
+        return None
+    path = m.group(1).strip()
+    ticker_match = re.search(r"([0-9A-Z]+\.TW)_\d{8}_\d{6}\.png", path)
+    return {
+        "ticker": ticker_match.group(1) if ticker_match else "unknown",
+        "path": path,
+    }
+
+
+def _parse_news_observation(obs: str) -> dict | None:
+    m = re.search(r"Latest news for '([^']+)':", obs)
+    if not m:
+        return None
+    titles = [title.strip() for title in re.findall(r"\n\d+\.\s+([^\n]+)", obs)]
+    return {
+        "query": m.group(1),
+        "titles": titles[:3],
+    }
+
+
+def _format_stock_line(stock: dict, chinese: bool) -> str:
+    if chinese:
+        return (
+            f"- {stock['ticker']} ({stock['period']}): 最新收盤價 {stock['latest_close']}, "
+            f"區間高點 {stock['period_high']}, 區間低點 {stock['period_low']}, "
+            f"平均成交量 {stock['avg_volume']}, 漲跌幅 {stock['price_change']}, "
+            f"交易天數 {stock['trading_days']}."
+        )
+    return (
+        f"- {stock['ticker']} ({stock['period']}): latest close {stock['latest_close']}, "
+        f"period high {stock['period_high']}, period low {stock['period_low']}, "
+        f"average volume {stock['avg_volume']}, price change {stock['price_change']}, "
+        f"trading days {stock['trading_days']}."
+    )
+
+
+def _format_fundamental_line(fundamental: dict, chinese: bool) -> str:
+    if chinese:
+        return (
+            f"- {fundamental['ticker']} ({fundamental['name']}): 目前價格 {fundamental['current_price']}, "
+            f"本益比 {fundamental['pe_ratio']}, 股息殖利率 {fundamental['dividend_yield']}, "
+            f"52 週高點 {fundamental['high_52w']}, 52 週低點 {fundamental['low_52w']}."
+        )
+    return (
+        f"- {fundamental['ticker']} ({fundamental['name']}): current price {fundamental['current_price']}, "
+        f"P/E ratio {fundamental['pe_ratio']}, dividend yield {fundamental['dividend_yield']}, "
+        f"52-week high {fundamental['high_52w']}, 52-week low {fundamental['low_52w']}."
+    )
+
+
+def _template_answer_from_observations(user_input: str, observations: list[str]) -> str | None:
+    stocks = [item for item in (_parse_stock_observation(obs) for obs in observations) if item]
+    fundamentals = [item for item in (_parse_fundamental_observation(obs) for obs in observations) if item]
+    charts = [item for item in (_parse_chart_observation(obs) for obs in observations) if item]
+    news = [item for item in (_parse_news_observation(obs) for obs in observations) if item]
+    chinese = _want_chinese(user_input)
+    lowered = user_input.lower()
+    requested_tickers = _extract_tickers(user_input)
+
+    asks_compare = any(token in lowered for token in ["compare", "comparison"]) or "比較" in user_input
+    asks_chart = any(token in lowered for token in ["chart", "plot"]) or "圖表" in user_input
+    asks_news = "news" in lowered or "新聞" in user_input
+    asks_fundamental = any(token in lowered for token in ["fundamental", "p/e", "dividend"]) or any(
+        token in user_input for token in ["基本面", "本益比", "股息"]
+    )
+    asks_stock = any(token in lowered for token in ["stock price", "performed", "performance"]) or any(
+        token in user_input for token in ["股價", "收盤價", "漲跌幅", "高低點"]
+    )
+
+    if asks_compare or (asks_chart and len(requested_tickers) >= 2):
+        lines = ["根據已觀察到的工具結果：" if chinese else "Based on the observed tool results:"]
+        stock_by_ticker = {item["ticker"]: item for item in stocks}
+        chart_by_ticker = {item["ticker"]: item for item in charts}
+        for ticker in requested_tickers:
+            if ticker in stock_by_ticker:
+                lines.append(_format_stock_line(stock_by_ticker[ticker], chinese))
+            else:
+                lines.append(
+                    f"- {ticker}: 未取得三個月股價 Observation，因此不能根據資料比較其股價表現。"
+                    if chinese
+                    else f"- {ticker}: no observed 3-month stock-history result was retrieved, so its price performance cannot be compared from evidence."
+                )
+            if ticker in chart_by_ticker:
+                lines.append(
+                    f"  圖表：{chart_by_ticker[ticker]['path']}"
+                    if chinese
+                    else f"  Chart: {chart_by_ticker[ticker]['path']}"
+                )
+        complete = all(ticker in stock_by_ticker for ticker in requested_tickers)
+        if complete and len(requested_tickers) >= 2:
+            ranked = sorted(
+                [stock_by_ticker[ticker] for ticker in requested_tickers],
+                key=lambda item: float(item["price_change"].replace("%", "").replace(",", "")),
+                reverse=True,
+            )
+            lines.append(
+                f"結論：依觀察到的漲跌幅，{ranked[0]['ticker']} 表現較佳。"
+                if chinese
+                else f"Conclusion: based on observed price change, {ranked[0]['ticker']} performed better."
+            )
+        else:
+            lines.append(
+                "結論：因為部分必要的股價 Observation 缺失，不能做完整比較。"
+                if chinese
+                else "Conclusion: a complete comparison is not supported because some required stock-history observations are missing."
+            )
+        return "\n".join(lines)
+
+    if asks_news and stocks and news:
+        lines = ["根據工具觀察：" if chinese else "Based on the observed tool results:"]
+        lines.extend(_format_stock_line(stock, chinese) for stock in stocks[:1])
+        titles = news[0]["titles"]
+        if titles:
+            lines.append("可能影響因素：" if chinese else "Possible influencing factors:")
+            for title in titles:
+                lines.append(f"- {title}")
+        else:
+            lines.append("工具沒有回傳可用新聞標題。" if chinese else "The tool did not return usable news headlines.")
+        return "\n".join(lines)
+
+    if asks_fundamental and fundamentals:
+        return "\n".join(_format_fundamental_line(item, chinese) for item in fundamentals)
+
+    if asks_stock and stocks:
+        return "\n".join(_format_stock_line(item, chinese) for item in stocks)
+
+    return None
 
 
 def _contains_cjk(text: str) -> bool:
@@ -276,16 +468,33 @@ def _coerce_tool_input(tool_name: str, tool_input: str):
 
 # ── LLM factory ──────────────────────────────────────────────────────────────
 
-def create_llm(tokenizer, model, max_new_tokens: int = 512, temperature: float = 0.1):
+def create_llm(
+    tokenizer,
+    model,
+    max_new_tokens: int = 512,
+    temperature: float = 0.1,
+    deterministic: bool = False,
+):
+    generation_kwargs = {
+        "max_new_tokens": max_new_tokens,
+        "return_full_text": False,
+        "repetition_penalty": 1.1,
+    }
+    if deterministic:
+        generation_kwargs["do_sample"] = False
+        if getattr(model, "generation_config", None) is not None:
+            model.generation_config.do_sample = False
+            model.generation_config.temperature = 1.0
+            model.generation_config.top_p = None
+    else:
+        generation_kwargs["do_sample"] = True
+        generation_kwargs["temperature"] = temperature
+
     pipe = hf_pipeline(
         "text-generation",
         model=model,
         tokenizer=tokenizer,
-        max_new_tokens=max_new_tokens,
-        temperature=temperature,
-        do_sample=True,
-        return_full_text=False,
-        repetition_penalty=1.1,
+        **generation_kwargs,
     )
     return HuggingFacePipeline(pipeline=pipe)
 
@@ -381,6 +590,11 @@ def make_force_final_node(llm):
             else "Answer in English."
         )
         observations = _extract_observations(state["scratchpad"])
+        templated = _template_answer_from_observations(state["input"], observations)
+        if templated:
+            state["output"] = templated
+            return state
+
         observation_text = "\n\n".join(observations) if observations else "No Observation was available."
         prompt = (
             f"User question: {state['input']}\n"
@@ -430,6 +644,7 @@ def create_agent_graph(
     max_new_tokens: int = 512,
     max_iterations: int = 6,
     ablation_mode: str = "full_suite",
+    deterministic: bool = False,
 ):
     # Resolve tools and prompt based on mode
     if ablation_mode == "llm_only":
@@ -451,7 +666,7 @@ def create_agent_graph(
     active_tool_map = _build_tool_map(active_tools)
     active_tool_names = set(active_tool_map)
 
-    llm = create_llm(tokenizer, model, max_new_tokens=max_new_tokens)
+    llm = create_llm(tokenizer, model, max_new_tokens=max_new_tokens, deterministic=deterministic)
 
     # ── nodes (pass active_tool_map into tool_node via closure) ──
     def _tool_node(state: ReActState) -> ReActState:

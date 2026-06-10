@@ -118,6 +118,7 @@ def execute_ablation_suite(
     only_ids: str = "",
     max_iterations: int = 6,
     max_new_tokens: int = 512,
+    deterministic: bool = False,
 ):
     print("\n=======================================================")
     print(f"STARTING ABLATION: {model_name} | MODE: {setting}")
@@ -129,6 +130,7 @@ def execute_ablation_suite(
         ablation_mode=setting,
         max_iterations=max_iterations,
         max_new_tokens=max_new_tokens,
+        deterministic=deterministic,
     )
     enabled_tools = enabled_tools_for_setting(setting)
 

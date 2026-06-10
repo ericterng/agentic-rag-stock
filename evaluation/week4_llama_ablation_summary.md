@@ -1,8 +1,8 @@
 # Week 4 Llama Ablation Summary
 
-This file summarizes the first complete Llama ablation result for the fixed Week 4 evaluation set.
+This file summarizes the Llama ablation result for the fixed Week 4 evaluation set.
 
-The goal is not to report final manually scored performance yet. Instead, this document records which raw CSV/JSON files should be treated as the current ablation evidence, the automatic metrics produced by the runner, and the main error-analysis findings that need manual scoring.
+It records the raw CSV/JSON files used as evidence, the automatic metrics produced by the runner, the manual scoring table, and the error-analysis findings that motivated the final prompt/template fixes.
 
 ## Run Configuration
 
@@ -16,6 +16,40 @@ The goal is not to report final manually scored performance yet. Instead, this d
 | Raw output policy | Raw CSV/JSON files are gitignored; this markdown file is the GitHub-readable summary |
 
 The final usable ablation result was assembled from segmented runs because one long run can be blocked by a single slow question. This does not change the evaluation questions or model, but it should be reported transparently.
+
+## Reproducibility Note
+
+Early Week 4 runs used sampling (`do_sample=True`, `temperature=0.1`), so repeated runs could produce different tool sequences and final answers even for the same question. This made error analysis useful but also showed that report-grade benchmark runs should be more reproducible.
+
+The ablation runner now supports:
+
+```bash
+python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --settings full_suite --deterministic
+```
+
+Recommended reproducible Windows command for the final Llama `full_suite` benchmark:
+
+```powershell
+$env:HF_HUB_OFFLINE='1'
+$env:TRANSFORMERS_OFFLINE='1'
+C:\Users\User\anaconda3\envs\pytorch\python.exe ablation_scripts\run_ablation.py `
+  --model meta-llama/Meta-Llama-3-8B-Instruct `
+  --local-files-only `
+  --settings full_suite `
+  --max-iterations 6 `
+  --max-new-tokens 384 `
+  --deterministic
+```
+
+When `--deterministic` is enabled, LLM sampling is disabled (`do_sample=False`). This makes the model's tool planning and final wording more stable for benchmark and demo use.
+
+Remaining sources of nondeterminism:
+
+- yfinance stock, fundamental, and news data are live and may change over time.
+- External tools can occasionally timeout or return incomplete data.
+- GPU/transformers execution may still have minor low-level nondeterminism.
+
+For the course report, deterministic decoding is recommended for final ablation runs. For live demos, deterministic mode is also preferred because stability is more important than conversational variety.
 
 ## Raw Files Used
 
@@ -94,7 +128,7 @@ Interpretation:
    Compared with `llm_only` and `llm_tools`, the full suite covers stock tools, RAG, and deterministic refusal behavior.
 
 2. **Tool selection is not the same as answer quality.**
-   Several `full_suite` answers select the right tool but are too short, vague, or contain placeholder-like wording. Manual scoring is still required for numeric correctness, evidence grounding, and hallucination count.
+   Several early `full_suite` answers selected the right tool but were too short, vague, or contained placeholder-like wording. This motivated the manual scoring table for numeric correctness, evidence grounding, and hallucination count.
 
 3. **RAG is necessary for the knowledge questions.**
    The `llm_tools` setting cannot answer W4-Q07 and W4-Q08 properly because the knowledge-base tool is disabled. This creates a clean ablation contrast for the report.
@@ -118,6 +152,16 @@ Manual scoring checks:
 | Hallucination count | Unsupported claims, invented facts, placeholder text, or prompt leakage |
 | Refusal correctness | Whether unsafe/out-of-domain requests are refused appropriately |
 | Chinese fluency | Whether Chinese answers are natural and understandable |
+
+Scoring criteria:
+
+| Metric | Full Credit | Deduction Examples |
+|---|---|---|
+| Numeric correctness | Final answer numbers match tool observations | Omitted numbers, wrong copied values, vague non-numeric answer |
+| Relevance / grounding | Answer directly addresses the question and is supported by tools/RAG | Generic answer, partial answer, unsupported broad claim |
+| Hallucination count | No fabricated values, unsupported claims, or prompt leakage | Fake numbers, placeholder text, duplicated prompt/reference artifacts |
+| Refusal correctness | Unsafe or out-of-domain request is refused without unnecessary tools | Guaranteed stock recommendation, answering non-financial tasks |
+| Chinese fluency | Answer follows Chinese query naturally | Mostly English answer, awkward template phrasing, unnecessary English note |
 
 Initial `full_suite` manual result:
 
@@ -184,3 +228,190 @@ Interpretation:
 Report-ready takeaway:
 
 > ReAct improved tool selection, but tool selection alone did not guarantee grounded final answers. Strengthening the observation-to-answer synthesis step improved numeric correctness from `2 / 6` to `5 / 6`, showing that final-answer verification is an important part of agentic financial RAG.
+
+## Template And Completion-Check Follow-Up
+
+After the prompt-fix run, we added deterministic answer templates and clearer comparison-task tool planning in `src/agent/agent_ablation.py`.
+
+Implementation:
+
+1. Parse observed tool results into structured fields for stock history, fundamentals, charts, and news.
+2. Use deterministic answer templates when observations are parseable.
+3. For comparison questions, report missing stock-history observations instead of over-claiming.
+4. Prompt the ReAct agent to call `tool_get_stock_history` for each ticker before answering price-performance comparisons, and to call `tool_plot_stock_chart` for each ticker when charts are requested.
+
+Targeted smoke test:
+
+```text
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_144546.json
+```
+
+Selected questions: W4-Q01, W4-Q03, W4-Q05, W4-Q06.
+
+Result:
+
+| ID | Result |
+|---|---|
+| W4-Q01 | Template answer correctly listed latest close, high, low, volume, price change, and trading days |
+| W4-Q03 | Template answer correctly listed current price, P/E, dividend yield, and 52-week high/low |
+| W4-Q05 | Template avoided over-claiming when one ticker's stock-history observation was missing |
+| W4-Q06 | Template correctly listed stock-history numbers and concrete news headlines |
+
+Then W4-Q05 was re-run with the improved comparison instruction and `max_iterations=6`:
+
+```text
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_150307.json
+```
+
+W4-Q05 result:
+
+| Required evidence | Status |
+|---|---|
+| `2330.TW` 3-month stock history | Found |
+| `0050.TW` 3-month stock history | Found |
+| `2330.TW` chart | Found |
+| `0050.TW` chart | Found |
+
+Final answer correctly reported:
+
+- `2330.TW`: latest close `2255.00`, high `2440.00`, low `1760.00`, price change `22.29%`
+- `0050.TW`: latest close `100.25`, high `107.85`, low `72.15`, price change `33.31%`
+- Conclusion: based on observed price change, `0050.TW` performed better
+
+This suggests that the remaining W4-Q05 failure can be addressed with task-specific tool planning plus deterministic answer templates, without adding a second LLM judge.
+
+## Final Chinese Full-Suite Verification
+
+After adding deterministic answer templates and comparison-specific tool planning, the Chinese `full_suite` benchmark was first run again on all 10 questions:
+
+```text
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_154548.csv
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_154548.json
+```
+
+For the final report-grade result, the same Chinese `full_suite` benchmark was re-run with `--deterministic`:
+
+```text
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_175344.csv
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_175344.json
+```
+
+The GitHub-readable manual scoring table is stored in:
+
+```text
+evaluation/week4_full_suite_manual_scores.csv
+```
+
+Automatic result:
+
+| Metric | Final Chinese Full Suite (`--deterministic`) |
+|---|---:|
+| Completed questions | 10 / 10 |
+| ReAct format success | 10 / 10 |
+| Auto tool-selection accuracy | 10 / 10 |
+| Total latency | 939.58s |
+
+Manual reading:
+
+| ID | Result |
+|---|---|
+| W4-Q01 | Correctly reports latest close, high, low, average volume, price change, and trading days for `2330.TW` |
+| W4-Q02 | Correctly reports latest close, high, low, average volume, price change, and trading days for `0050.TW` |
+| W4-Q03 | Correctly reports current price, P/E ratio, dividend yield, and 52-week high/low for `2330.TW` |
+| W4-Q04 | Correctly reports P/E ratio, dividend yield, current price `N/A`, and 52-week high/low for `0050.TW` |
+| W4-Q05 | Correctly retrieves both tickers' 3-month stock history, generates both charts, and compares price change |
+| W4-Q06 | Correctly reports 3-month stock performance and lists concrete observed news headlines |
+| W4-Q07 | Uses RAG and answers in Chinese, though the answer still includes an English note |
+| W4-Q08 | Uses RAG and gives a broad ETF-risk answer, but still answers mostly in English |
+| W4-Q09 | Correctly refuses guaranteed limit-up stock recommendation |
+| W4-Q10 | Correctly refuses non-financial snake-game request |
+
+Numeric/data-specific details observed in the deterministic run:
+
+| ID | Key Grounded Numbers |
+|---|---|
+| W4-Q01 | `2330.TW`: latest close `2255.00`, high `2440.00`, low `2185.00`, average volume `34447438`, price change `0.89%`, trading days `23` |
+| W4-Q02 | `0050.TW`: latest close `100.25`, high `107.85`, low `72.15`, average volume `114464955`, price change `33.31%`, trading days `63` |
+| W4-Q03 | `2330.TW`: current price `2255.0`, P/E `30.667755`, dividend yield `1.04`, 52-week high `2440.0`, 52-week low `1015.0` |
+| W4-Q04 | `0050.TW`: current price `N/A`, P/E `29.276758`, dividend yield `1.31`, 52-week high `107.85`, 52-week low `46.28` |
+| W4-Q05 | `2330.TW` price change `22.29%`; `0050.TW` price change `33.31%`; conclusion: `0050.TW` performed better over the observed 3-month period |
+| W4-Q06 | `2330.TW` 3-month price statistics plus concrete observed news headlines about TSMC sales growth, AI chip demand, and Taiwan-related trade restrictions |
+
+Manual scoring summary:
+
+| Manual Metric | Result |
+|---|---:|
+| Numeric correctness on numeric/data-specific questions | 6 / 6 |
+| Refusal correctness on refusal questions | 2 / 2 |
+| Average relevance / grounding score | 0.91 / 1.00 |
+| Total hallucination or output-quality issues counted | 3 |
+| Average Chinese fluency score | 0.67 / 1.00 |
+
+Manual scoring interpretation:
+
+- The final system now grounds all six numeric/data-specific answers in observed tool outputs.
+- The two refusal cases are handled correctly without tool calls.
+- Remaining quality issues are concentrated in the RAG questions: W4-Q07 includes duplicated references and an English note, while W4-Q08 answers mostly in English and includes broad ETF-risk categories that are only partially supported by retrieved results.
+
+Final before/after summary:
+
+| Stage | Numeric Correctness | Tool Selection | Main Finding |
+|---|---:|---:|---|
+| Initial Chinese full suite | 2 / 6 | 10 / 10 | Correct tools, weak final-answer synthesis |
+| Prompt-fix Chinese full suite | 5 / 6 | 9.5 / 10 | Numeric reporting improved, W4-Q05 still unstable |
+| Template + completion-planning Chinese full suite | 6 / 6 | 10 / 10 | Numeric/data-specific tasks are now grounded and complete |
+| Template + completion-planning + deterministic decoding | 6 / 6 | 10 / 10 | Same numeric quality with more reproducible decoding for benchmark/demo use |
+
+The remaining weaknesses are mainly RAG answer language/coverage rather than numeric grounding:
+
+- W4-Q07 still adds an English note after a Chinese answer.
+- W4-Q08 answers mostly in English and uses a broad risk taxonomy.
+- These are useful remaining findings for Chinese fluency and RAG answer-quality evaluation.
+
+## English Question Set Follow-Up
+
+An English version of the same 10-question benchmark was added as:
+
+```text
+evaluation/week4_questions_en.json
+```
+
+This is a language-controlled follow-up, not a replacement for the original Chinese/Taiwan-market benchmark.
+
+English `full_suite` raw files:
+
+```text
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_135633.csv
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_135633.json
+```
+
+Automatic result:
+
+| Metric | English Full Suite |
+|---|---:|
+| Completed questions | 10 / 10 |
+| ReAct format success | 10 / 10 |
+| Auto tool-selection accuracy | 9.5 / 10 |
+| Total latency | 695.93s |
+
+Quick manual reading:
+
+| ID | Result |
+|---|---|
+| W4-Q01 | Used stock history twice, but final answer was vague and omitted observed numbers |
+| W4-Q02 | Correctly reported latest close, high, low, and price change |
+| W4-Q03 | Used fundamentals but did not list the observed fundamental numbers |
+| W4-Q04 | Correctly reported P/E, dividend yield, and current price `N/A` |
+| W4-Q05 | Generated two charts but did not retrieve stock-history data, so it did not actually compare 3-month price performance |
+| W4-Q06 | Stronger than Chinese run: reported 3-month price change and summarized concrete news factors |
+| W4-Q07 | Used RAG and gave a concise AI/semiconductor answer |
+| W4-Q08 | Used RAG and correctly noted that retrieved content was not a general ETF-risk source |
+| W4-Q09 | Correct refusal |
+| W4-Q10 | Correct refusal |
+
+Interpretation:
+
+- English improves language fluency and avoids the Chinese-answer problem.
+- English does **not** fully solve observation-to-answer synthesis; W4-Q01 and W4-Q03 still omit observed numbers.
+- W4-Q05 remains the clearest language-independent failure: the agent needs a multi-tool completion check before comparison answers.
+- W4-Q06 improves in English, suggesting that some news-summarization failures were partly language/instruction-following related.

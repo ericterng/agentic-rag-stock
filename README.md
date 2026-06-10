@@ -10,6 +10,7 @@ For contributors continuing the project:
 - Start with this `README.md` for the current project direction.
 - Read `week3_progress.md` for the verified Week 1-3 baseline status and recent Agent fixes.
 - Follow `model_ablation_plan.md` for Week 4 Llama/Qwen model comparison.
+- Read `docs/final_report_draft.md` for the current final-report narrative and latest Week 4 results.
 - Historical planning documents are preserved under `docs/`.
 
 ---
@@ -310,6 +311,20 @@ python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instr
 python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --settings llm_tools --only-ids W4-Q08,W4-Q09,W4-Q10 --max-iterations 3 --max-new-tokens 256
 ```
 
+Recommended reproducible full-suite benchmark command on the verified local Windows environment:
+
+```powershell
+$env:HF_HUB_OFFLINE='1'
+$env:TRANSFORMERS_OFFLINE='1'
+C:\Users\User\anaconda3\envs\pytorch\python.exe ablation_scripts\run_ablation.py `
+  --model meta-llama/Meta-Llama-3-8B-Instruct `
+  --local-files-only `
+  --settings full_suite `
+  --max-iterations 6 `
+  --max-new-tokens 384 `
+  --deterministic
+```
+
 ---
 
 ## Known Limitations
@@ -318,7 +333,7 @@ python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instr
 - Small 4-bit LLMs may produce unstable ReAct formatting, so the graph includes fallback handling and final-answer forcing.
 - yfinance news search is ticker-based; broader keyword queries should use the RAG knowledge base instead.
 - Numeric answers must be checked against tool observations during evaluation because small LLMs may paraphrase or distort numbers.
-- Guardrails are planned for Week 5 and are not yet fully implemented.
+- The current guardrails are deterministic baseline rules for guaranteed-return and non-financial requests; broader financial safety coverage is future work.
 - Qwen3.6 is considered future work rather than a main local baseline because the available 27B/35B-scale models exceed the project's 8GB VRAM constraint and may require a different image-text-to-text loading path.
 
 ---

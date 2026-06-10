@@ -6,6 +6,14 @@ Week 4 turns the Week 1-3 prototype into a measurable baseline. The purpose is n
 
 The fixed question set is stored in `evaluation/week4_questions.json`.
 
+An English version of the same 10-question set is also stored in:
+
+```text
+evaluation/week4_questions_en.json
+```
+
+The current Llama ablation and manual scoring results were produced with the original Chinese question set. The English version should be treated as a follow-up language-controlled evaluation, not a replacement for the existing results.
+
 | Type | Count | Purpose |
 |---|---:|---|
 | Single-tool stock price | 2 | Check stock history lookup and numeric grounding |
@@ -166,6 +174,8 @@ The first complete Llama ablation summary is stored in:
 ```text
 evaluation/week4_llama_ablation_summary.md
 ```
+
+The full-suite manual scoring, error analysis, and prompt-fix before/after result are consolidated in the same summary file. This keeps the Week 4 evidence in one GitHub-readable place instead of spreading it across several small files.
 
 The GitHub-readable summary combines segmented ablation runs into one 10-question result for each setting:
 

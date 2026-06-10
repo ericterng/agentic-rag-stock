@@ -105,16 +105,82 @@ Interpretation:
 5. **Latency is higher when tools are enabled.**
    `llm_tools` and `full_suite` are much slower than `llm_only`, mostly because each question can involve multiple model/tool iterations.
 
-## Manual Scoring Still Needed
+## Full-Suite Manual Scoring And Error Analysis
 
-The automatic CSV fields are not the final grade. The following columns still need human review using the JSON traces:
+The automatic CSV fields are not the final grade. After the first full-suite run, we manually reviewed the JSON traces for all 10 questions.
+
+Manual scoring checks:
 
 | Manual Field | What to Check |
 |---|---|
-| `numeric_correctness_manual` | Whether final numbers match tool Observations |
-| `relevance_grounding_manual` | Whether the final answer addresses the question and is supported by tool/RAG output |
-| `hallucination_count_manual` | Unsupported claims, invented facts, or placeholder text |
-| `refusal_correctness_manual` | Whether unsafe/out-of-domain requests are refused appropriately |
-| `chinese_fluency_manual` | Whether Chinese answers are natural and understandable |
+| Numeric correctness | Whether final numbers match tool Observations |
+| Relevance / grounding | Whether the answer addresses the question and is supported by tool/RAG output |
+| Hallucination count | Unsupported claims, invented facts, placeholder text, or prompt leakage |
+| Refusal correctness | Whether unsafe/out-of-domain requests are refused appropriately |
+| Chinese fluency | Whether Chinese answers are natural and understandable |
 
-Recommended next step: score `full_suite` first because it is the main system, then compare it against `llm_only` and `llm_tools`.
+Initial `full_suite` manual result:
+
+| Metric | Initial Result |
+|---|---:|
+| Numeric correctness on numeric-required questions | 2 / 6 clearly correct |
+| Average relevance / grounding score | 0.60 / 1.00 |
+| Total hallucination or output-quality issues counted | 4 |
+| Refusal correctness on refusal questions | 2 / 2 |
+| Chinese fluency average | 0.30 / 1.00 |
+
+Here, `2 / 6 clearly correct` means that W4-Q01 to W4-Q06 required numeric or data-specific reporting, but only W4-Q01 and W4-Q02 clearly copied the relevant observed numbers into the final answer.
+
+Main diagnosis:
+
+- The issue was **not mainly missing data sources**.
+- Most failures selected the correct tool and received useful Observations.
+- The main bottleneck was weak observation-to-answer synthesis.
+- The model often omitted numbers, produced vague answers, answered Chinese questions in English, or used placeholder-like wording.
+
+Failure examples:
+
+| ID | What Happened | Diagnosis |
+|---|---|---|
+| W4-Q03 | Fundamental data was observed, but the answer said `(insert observation above)` | Final-answer synthesis failure |
+| W4-Q04 | P/E and dividend yield were observed, but the answer did not report them | Final-answer synthesis failure |
+| W4-Q05 | The agent did not observe complete 3-month stock-history data for both tickers, but still compared performance | Multi-tool completion + over-claiming |
+| W4-Q06 | Price and news observations existed, but the answer only said performance may be influenced by the news | Vague final answer |
+| W4-Q07 | RAG was selected, but the answer leaked prompt text | Output-control failure |
+
+## Prompt-Fix Follow-Up
+
+Based on the error analysis, `src/agent/agent_ablation.py` was updated to improve final-answer synthesis:
+
+1. Low-quality direct final answers are routed back through `force_final`.
+2. The final synthesis prompt now receives only extracted `Observation:` blocks instead of the full scratchpad.
+3. The prompt explicitly asks the model to include requested numeric fields, state `N/A` values, avoid placeholders, avoid unobserved chart paths, and summarize concrete news factors.
+
+The Chinese `full_suite` benchmark was re-run after this fix.
+
+Prompt-fix raw files:
+
+```text
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_130810.csv
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_130810.json
+```
+
+Before/after result:
+
+| Metric | Before Fix | After Fix |
+|---|---:|---:|
+| Numeric correctness on numeric-required questions | 2 / 6 clearly correct | 5 / 6 clearly correct |
+| Average relevance / grounding score | 0.60 / 1.00 | 0.78 / 1.00 |
+| Refusal correctness on refusal questions | 2 / 2 | 2 / 2 |
+| Chinese fluency average | 0.30 / 1.00 | 0.50 / 1.00 |
+
+Interpretation:
+
+- Numeric reporting improved substantially, which supports the diagnosis that many failures came from weak synthesis rather than missing data.
+- The remaining major failure is W4-Q05: the agent still needs a multi-tool completion check before comparing two tickers.
+- W4-Q06 improved on price numbers but still mishandled news grounding.
+- Chinese fluency improved but remains imperfect, especially for RAG answers.
+
+Report-ready takeaway:
+
+> ReAct improved tool selection, but tool selection alone did not guarantee grounded final answers. Strengthening the observation-to-answer synthesis step improved numeric correctness from `2 / 6` to `5 / 6`, showing that final-answer verification is an important part of agentic financial RAG.

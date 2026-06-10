@@ -115,6 +115,7 @@ class ReActState(TypedDict):
 _ACTION_RE = re.compile(r"Action:\s*(.+)", re.IGNORECASE)
 _INPUT_RE  = re.compile(r"Action Input:\s*(.+)", re.IGNORECASE)
 _FINAL_RE  = re.compile(r"Final Answer:\s*(.+)", re.DOTALL | re.IGNORECASE)
+_OBSERVATION_RE = re.compile(r"Observation:\s*(.*?)(?=\nThought:|\nAction:|\nFinal Answer:|\Z)", re.IGNORECASE | re.DOTALL)
 
 _PERIOD_ALIASES = {
     "1 month": "1mo",
@@ -158,6 +159,37 @@ def _parse_action(text: str, allowed_tool_names: set = None):
 def _parse_final(text: str):
     m = _FINAL_RE.search(text)
     return m.group(1).strip() if m else None
+
+
+def _extract_observations(text: str) -> list[str]:
+    return [item.strip() for item in _OBSERVATION_RE.findall(text) if item.strip()]
+
+
+def _is_low_quality_final(final: str, user_input: str) -> bool:
+    lowered = final.lower()
+    bad_phrases = [
+        "insert observation",
+        "see above",
+        "these news articles",
+        "these news factors",
+        "we also got",
+        "please continue",
+        "your answer starts here",
+    ]
+    if any(phrase in lowered for phrase in bad_phrases):
+        return True
+
+    if _contains_cjk(user_input) and not _contains_cjk(final):
+        return True
+
+    numeric_or_data_question = any(
+        token in user_input
+        for token in ["股價", "收盤價", "高低點", "漲跌幅", "本益比", "股息", "價格", "基本面", "新聞"]
+    )
+    if numeric_or_data_question and len(final) < 80:
+        return True
+
+    return False
 
 
 def _contains_cjk(text: str) -> bool:
@@ -318,6 +350,8 @@ def make_should_continue(max_iterations: int = 6, allowed_tool_names: set = None
             return "force_final"
         final = _parse_final(state["scratchpad"])
         if final:
+            if _is_low_quality_final(final, state["input"]):
+                return "force_final"
             state["output"] = final
             return "end"
         if _is_knowledge_base_question(state["input"]) and state.get("iterations", 0) >= 1:
@@ -342,18 +376,34 @@ def make_force_final_node(llm):
     """Generate Final Answer directly from accumulated observations."""
     def force_final_node(state: ReActState) -> ReActState:
         language_instruction = (
-            "請用繁體中文回答，不要改用英文。"
+            "Answer in Traditional Chinese. Use clear bullet points when listing numbers."
             if _contains_cjk(state["input"])
             else "Answer in English."
         )
+        observations = _extract_observations(state["scratchpad"])
+        observation_text = "\n\n".join(observations) if observations else "No Observation was available."
         prompt = (
             f"User question: {state['input']}\n"
-            + state["scratchpad"]
+            + "Observed tool results:\n"
+            + observation_text
             + f"\n{language_instruction}\n"
-            + "Based only on the Observation above, answer the user's question concisely.\nFinal Answer:"
+            + "Create the final answer using ONLY the Observed tool results above.\n"
+            + "Rules:\n"
+            + "1. Include every numeric field requested by the user if it appears in the observed tool results.\n"
+            + "2. If the observed tool results say a value is N/A, explicitly say the tool returned N/A; do not guess.\n"
+            + "3. Do not use placeholders such as 'insert observation', 'see above', or 'these news articles'.\n"
+            + "4. Do not mention a chart path unless that exact path appears in the observed tool results.\n"
+            + "5. For comparison questions, compare only tickers with observed data and state if data is missing.\n"
+            + "6. For news questions, summarize specific observed headlines or factors instead of saying 'these articles'.\n"
+            + "7. Keep the answer concise but complete.\n"
+            + "Final Answer:"
         )
         raw = llm.invoke(prompt)
-        state["output"] = raw.split("\n")[0].strip()
+        final = raw.strip()
+        for marker in ["\nUser question:", "\nThought:", "\nAction:", "\nObservation:"]:
+            if marker in final:
+                final = final.split(marker, 1)[0].strip()
+        state["output"] = final
         return state
     return force_final_node
 

@@ -15,6 +15,114 @@ For contributors continuing the project:
 
 ---
 
+## Reproduce the Final Week 4 Result
+
+This section is the recommended path for instructors or TAs who want to reproduce the final reported Week 4 result.
+
+### 1. Environment
+
+The verified local environment used:
+
+```text
+Windows 11
+Python 3.11
+CUDA GPU with about 8GB VRAM
+Conda env: pytorch
+Model: meta-llama/Meta-Llama-3-8B-Instruct
+Quantization: 4-bit NF4
+```
+
+Install dependencies:
+
+```powershell
+conda create -n pytorch python=3.11 -y
+conda activate pytorch
+pip install -r requirements.txt
+```
+
+If `conda` is not in `PATH`, use the Python executable inside your own conda environment. On the verified machine, the executable was:
+
+```powershell
+C:\Users\User\anaconda3\envs\pytorch\python.exe
+```
+
+### 2. Model and Data Requirements
+
+The repository does not include model weights. The following assets must be available in the Hugging Face cache or downloaded before running:
+
+| Asset | Purpose |
+|---|---|
+| `meta-llama/Meta-Llama-3-8B-Instruct` | 4-bit local Llama baseline |
+| `BAAI/bge-m3` | RAG embedding model |
+
+Llama models may require Hugging Face access approval and a valid `HUGGINGFACE_TOKEN`.
+
+Create `.env` from the example:
+
+```powershell
+copy .env.example .env
+```
+
+Then fill in the required Hugging Face token if the model is not already cached locally.
+
+### 3. Rebuild the RAG Database if Needed
+
+If `data/vectordb/` is missing, rebuild it:
+
+```powershell
+python -c "from src.rag.loader import load_all_documents; from src.rag.retriever import build_vectordb; docs = load_all_documents(); build_vectordb(docs)"
+```
+
+### 4. Run the Final Deterministic Full Suite
+
+Recommended command on the verified Windows environment:
+
+```powershell
+$env:HF_HUB_OFFLINE='1'
+$env:TRANSFORMERS_OFFLINE='1'
+C:\Users\User\anaconda3\envs\pytorch\python.exe ablation_scripts\run_ablation.py `
+  --model meta-llama/Meta-Llama-3-8B-Instruct `
+  --local-files-only `
+  --settings full_suite `
+  --max-iterations 6 `
+  --max-new-tokens 384 `
+  --deterministic
+```
+
+If the model is not cached locally, remove `--local-files-only` and unset the offline environment variables for the first download.
+
+### 5. Expected Output and Reported Result
+
+The runner writes CSV and JSON traces to:
+
+```text
+ablation_outputs/evaluation/
+```
+
+The final reported result is summarized in:
+
+```text
+evaluation/week4_llama_ablation_summary.md
+evaluation/week4_full_suite_manual_scores.csv
+docs/final_report_draft.md
+```
+
+Expected final Week 4 result:
+
+| Metric | Expected Result |
+|---|---:|
+| Completed questions | 10 / 10 |
+| ReAct format success | 10 / 10 |
+| Auto tool-selection accuracy | 10 / 10 |
+| Manual numeric correctness | 6 / 6 |
+| Manual refusal correctness | 2 / 2 |
+| Average relevance / grounding | 0.91 / 1.00 |
+| Average Chinese fluency | 0.67 / 1.00 |
+
+Note: yfinance stock and news data are live, so exact prices, headlines, and latency may change when rerunning on a later date. The deterministic flag makes model decoding more stable, but it cannot freeze external market/news data.
+
+---
+
 ## Research Question
 
 This project does not aim to outperform state-of-the-art financial forecasting models. Instead, it investigates whether a resource-constrained local LLM can perform more grounded stock market analysis when combined with a ReAct-style agent loop, external financial tools, and a RAG knowledge base.

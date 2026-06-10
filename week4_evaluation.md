@@ -154,10 +154,28 @@ This means the fixed 10-question benchmark is now executable across all question
 
 ## Next Steps
 
-1. Manually review the raw run output and fill the manual scoring columns in the CSV.
-2. Optionally run one strict full 10-question baseline after the targeted fixes.
+1. Manually review the raw ablation JSON traces and fill the manual scoring columns in the CSV.
+2. Score `full_suite` first because it is the main system, then compare it against `llm_only` and `llm_tools`.
 3. Re-run the same fixed question set with `Qwen/Qwen3-4B-Instruct-2507` for the first model ablation.
 4. Compare Llama and Qwen on tool efficiency, refusal correctness, Chinese fluency, latency, and hallucination count.
+
+## Llama Ablation Result Summary
+
+The first complete Llama ablation summary is stored in:
+
+```text
+evaluation/week4_llama_ablation_summary.md
+```
+
+The GitHub-readable summary combines segmented ablation runs into one 10-question result for each setting:
+
+| Setting | Completed Questions | ReAct Format Success | Auto Tool Selection Accuracy | Notes |
+|---|---:|---:|---:|---|
+| `llm_only` | 10 / 10 | 0 / 10 | 2 / 10 | No-tool baseline; only refusal tasks match expected no-tool behavior |
+| `llm_tools` | 10 / 10 | 10 / 10 | 8 / 10 | Market/news/chart tools work; RAG tasks fail because RAG is disabled |
+| `full_suite` | 10 / 10 | 10 / 10 | 10 / 10 | Best automatic tool selection; still needs manual scoring for answer quality |
+
+The raw CSV/JSON files remain under `ablation_outputs/evaluation/` and are intentionally ignored by Git. The markdown summary records which raw files were used and the preliminary error-analysis findings.
 
 ## Ablation Branch Integration Validation
 

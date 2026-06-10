@@ -37,6 +37,23 @@ def main():
         action="store_true",
         help="Load model files only from the local Hugging Face cache."
     )
+    parser.add_argument(
+        "--settings",
+        default="llm_only,llm_tools,full_suite",
+        help="Comma-separated ablation settings to run: llm_only,llm_tools,full_suite."
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=6,
+        help="Maximum ReAct tool iterations per question."
+    )
+    parser.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=512,
+        help="Maximum new tokens generated per model call."
+    )
 
     args = parser.parse_args()
 
@@ -48,7 +65,13 @@ def main():
     )
     load_memory = round(torch.cuda.memory_allocated() / (1024 ** 2), 2)
 
-    for setting in ["llm_only", "llm_tools", "full_suite"]:
+    settings = [item.strip() for item in args.settings.split(",") if item.strip()]
+    valid_settings = {"llm_only", "llm_tools", "full_suite"}
+    invalid_settings = [item for item in settings if item not in valid_settings]
+    if invalid_settings:
+        raise ValueError(f"Invalid ablation settings: {', '.join(invalid_settings)}")
+
+    for setting in settings:
         execute_ablation_suite(
             tokenizer=tokenizer,
             model=model,
@@ -58,9 +81,11 @@ def main():
             questions_path=args.questions,
             limit=args.limit,
             only_ids=args.only_ids,
+            max_iterations=args.max_iterations,
+            max_new_tokens=args.max_new_tokens,
         )
 
-    print(f"\n   All 3 ablation settings completed for {args.model}!")
+    print(f"\n   Ablation settings completed for {args.model}: {', '.join(settings)}")
 
 if __name__ == "__main__":
     main()

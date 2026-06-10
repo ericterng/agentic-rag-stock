@@ -290,11 +290,24 @@ python ablation_scripts/run_ablation.py --model Qwen/Qwen3-8B
 
 CSV and JSON outputs are saved to `ablation_outputs/evaluation/`, with one file per model and ablation setting.
 
+The current Llama ablation summary is documented in:
+
+```text
+evaluation/week4_llama_ablation_summary.md
+```
+
 在執行全部10題前先做2題快速驗證:
 
 ```bash
 python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --limit 2
 python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --only-ids W4-Q09,W4-Q10
+```
+
+To re-run only selected ablation settings or recover from a slow question:
+
+```bash
+python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --settings full_suite
+python ablation_scripts/run_ablation.py --model meta-llama/Meta-Llama-3-8B-Instruct --local-files-only --settings llm_tools --only-ids W4-Q08,W4-Q09,W4-Q10 --max-iterations 3 --max-new-tokens 256
 ```
 
 ---

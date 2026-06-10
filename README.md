@@ -1,5 +1,7 @@
 # Resource-Constrained Agentic RAG for Grounded Stock Market Analysis
 
+Author: 滕彥宜 (Teng Yan-Yi)
+
 This project builds a transparent text-based ReAct financial agent for grounded stock-market question answering. The goal is not to predict stock prices or beat SOTA trading systems, but to evaluate whether a local 4-bit Llama agent can choose tools correctly, ground numeric answers in observations, use RAG for financial knowledge questions, and refuse unsafe or out-of-domain requests.
 
 ## What to Read

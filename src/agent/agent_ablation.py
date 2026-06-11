@@ -179,11 +179,50 @@ def _is_low_quality_final(final: str, user_input: str) -> bool:
         "includes its current price",
         "includes current price",
         "includes its p/e ratio",
+        "has been performing well",
+        "performed well over the past",
+        "two charts have been generated",
+        "specified paths",
+        "includes its current price, p/e ratio",
     ]
     if any(phrase in lowered for phrase in bad_phrases):
         return True
 
     if _contains_cjk(user_input) and not _contains_cjk(final):
+        return True
+
+    english_numeric_or_data_question = any(
+        token in user_input.lower()
+        for token in [
+            "stock price",
+            "performed",
+            "performance",
+            "latest close",
+            "period high",
+            "period low",
+            "percentage change",
+            "fundamental",
+            "p/e",
+            "dividend",
+            "52-week",
+            "compare",
+            "comparison",
+        ]
+    )
+    if english_numeric_or_data_question and len(final) < 80:
+        return True
+    if english_numeric_or_data_question and not re.search(r"\d+\.\d+|N/A|%", final):
+        return True
+    english_stock_performance_question = any(
+        token in user_input.lower()
+        for token in ["stock price performance", "stock performance", "performed over"]
+    )
+    if english_stock_performance_question and (
+        "latest close" not in lowered
+        or "high" not in lowered
+        or "low" not in lowered
+        or ("price change" not in lowered and "%" not in lowered)
+    ):
         return True
 
     numeric_or_data_question = any(

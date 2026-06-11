@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime
 from langchain_core.tools import tool
-from src.config import CHARTS_DIR
+from src.config import CHARTS_DIR, YFINANCE_CACHE_DIR
+
+
+yf.cache.set_cache_location(str(YFINANCE_CACHE_DIR))
 
 
 def get_stock_history(ticker: str, period: str = "3mo") -> pd.DataFrame:

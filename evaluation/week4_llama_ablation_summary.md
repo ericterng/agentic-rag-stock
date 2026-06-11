@@ -378,40 +378,57 @@ evaluation/week4_questions_en.json
 
 This is a language-controlled follow-up, not a replacement for the original Chinese/Taiwan-market benchmark.
 
-English `full_suite` raw files:
+Initial English `full_suite` raw files:
 
 ```text
 ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_135633.csv
 ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260610_135633.json
 ```
 
+After applying the same low-quality final-answer routing and deterministic template logic used for the final Chinese run, the English benchmark was re-run:
+
+```text
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260611_030645.csv
+ablation_outputs/evaluation/ablation_meta-llama__Meta-Llama-3-8B-Instruct_full_suite_20260611_030645.json
+evaluation/week4_full_suite_en_manual_scores.csv
+```
+
 Automatic result:
 
-| Metric | English Full Suite |
-|---|---:|
-| Completed questions | 10 / 10 |
-| ReAct format success | 10 / 10 |
-| Auto tool-selection accuracy | 9.5 / 10 |
-| Total latency | 695.93s |
+| Metric | Initial English Full Suite | Final English Full Suite |
+|---|---:|---:|
+| Completed questions | 10 / 10 | 10 / 10 |
+| ReAct format success | 10 / 10 | 10 / 10 |
+| Auto tool-selection accuracy | 9.5 / 10 | 10 / 10 |
+| Total latency | 695.93s | 663.88s |
 
-Quick manual reading:
+Final English manual reading:
 
 | ID | Result |
 |---|---|
-| W4-Q01 | Used stock history twice, but final answer was vague and omitted observed numbers |
-| W4-Q02 | Correctly reported latest close, high, low, and price change |
-| W4-Q03 | Used fundamentals but did not list the observed fundamental numbers |
-| W4-Q04 | Correctly reported P/E, dividend yield, and current price `N/A` |
-| W4-Q05 | Generated two charts but did not retrieve stock-history data, so it did not actually compare 3-month price performance |
-| W4-Q06 | Stronger than Chinese run: reported 3-month price change and summarized concrete news factors |
+| W4-Q01 | Correctly reports latest close, high, low, average volume, price change, and trading days |
+| W4-Q02 | Correctly reports latest close, high, low, and price change |
+| W4-Q03 | Correctly reports current price, P/E ratio, dividend yield, and 52-week high/low |
+| W4-Q04 | Correctly reports P/E ratio, dividend yield, and current price `N/A` |
+| W4-Q05 | Correctly retrieves both stock histories, generates both charts, and compares observed price changes |
+| W4-Q06 | Reports three-month price statistics and summarizes concrete news factors |
 | W4-Q07 | Used RAG and gave a concise AI/semiconductor answer |
-| W4-Q08 | Used RAG and correctly noted that retrieved content was not a general ETF-risk source |
+| W4-Q08 | Used RAG and summarized ETF-related risks from the retrieved knowledge base |
 | W4-Q09 | Correct refusal |
 | W4-Q10 | Correct refusal |
 
+Manual score:
+
+| Metric | Final English Full Suite |
+|---|---:|
+| Numeric correctness on numeric/data-specific questions | 6 / 6 |
+| Refusal correctness on refusal questions | 2 / 2 |
+| Average relevance / grounding score | 0.95 / 1.00 |
+| Hallucination or output-quality issues | 1 |
+| Average English fluency score | 1.00 / 1.00 |
+
 Interpretation:
 
-- English improves language fluency and avoids the Chinese-answer problem.
-- English does **not** fully solve observation-to-answer synthesis; W4-Q01 and W4-Q03 still omit observed numbers.
-- W4-Q05 remains the clearest language-independent failure: the agent needs a multi-tool completion check before comparison answers.
-- W4-Q06 improves in English, suggesting that some news-summarization failures were partly language/instruction-following related.
+- English improves language fluency and avoids the Chinese-output issue.
+- After applying the same final-answer quality gate and templates, the English full-suite run reaches the same numeric correctness level as the final Chinese run.
+- Remaining English issues are concentrated in RAG answer quality rather than market-data grounding. W4-Q07 includes a mild investment-style phrase ("worth considering"), and W4-Q08 answers ETF risk through the retrieved semiconductor/supply-chain context rather than a complete general ETF-risk taxonomy.

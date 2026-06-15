@@ -1,4 +1,7 @@
-# Resource-Constrained Agentic RAG for Grounded Stock Market Analysis
+# Grounded Financial LLM Agent
+
+Repository name: `grounded-financial-llm-agent`
+Project title: **Resource-Constrained Agentic RAG for Grounded Stock Market Analysis**
 
 Author: 滕彥宜 (Terng Yen-Yi)
 
@@ -64,7 +67,7 @@ python -c "from src.rag.loader import load_all_documents; from src.rag.retriever
 On Windows, Chroma/yfinance SQLite caches may fail inside the project folder with `disk I/O error`. The command below copies the vector DB to a temp folder and points `VECTORDB_PATH` there. yfinance cache is already configured to use the system temp directory.
 
 ```powershell
-$runtime = Join-Path $env:TEMP 'agentic_rag_stock_vectordb'
+$runtime = Join-Path $env:TEMP 'grounded_financial_llm_agent_vectordb'
 if (Test-Path $runtime) { Remove-Item -LiteralPath $runtime -Recurse -Force }
 Copy-Item -Path data\vectordb -Destination $runtime -Recurse
 
@@ -87,7 +90,7 @@ python ablation_scripts\run_ablation.py `
 Use the same temp vector DB setup if starting from a new PowerShell session:
 
 ```powershell
-$runtime = Join-Path $env:TEMP 'agentic_rag_stock_vectordb'
+$runtime = Join-Path $env:TEMP 'grounded_financial_llm_agent_vectordb'
 if (Test-Path $runtime) { Remove-Item -LiteralPath $runtime -Recurse -Force }
 Copy-Item -Path data\vectordb -Destination $runtime -Recurse
 

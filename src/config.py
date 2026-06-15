@@ -12,7 +12,7 @@ VECTORDB_DIR = DATA_DIR / "vectordb"
 YFINANCE_CACHE_DIR = Path(
     os.getenv(
         "YFINANCE_CACHE_DIR",
-        str(Path(tempfile.gettempdir()) / "agentic_rag_stock_yfinance_cache"),
+        str(Path(tempfile.gettempdir()) / "grounded_financial_llm_agent_yfinance_cache"),
     )
 )
 OUTPUTS_DIR = BASE_DIR / "outputs"
